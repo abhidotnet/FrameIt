@@ -105,7 +105,7 @@ The post-capture window is an editor. The toolbar is a light ribbon: icon and sh
 
 - **Save / Save As.** `Microsoft.Win32.SaveFileDialog`, PNG or JPEG. JPEG uses the quality setting. `Ctrl+S` overwrites the current path.
 - **Edits.** Crop (marquee stays on the photo, bright area is kept, Enter or double-click applies), resize (pixels or percent, aspect lock), rotate 90° left/right, flip horizontal/vertical, brightness/contrast. Brightness and contrast preview live and become one undo step when you apply.
-- **Annotations.** Arrow, line, rectangle, ellipse, pen, highlighter, text, and auto-numbered steps. Preset colors plus a custom color, with thickness and font size. Select, drag to move, `Delete` to remove. Double-click text to edit it. New steps use the next number; deleting one does not renumber the rest.
+- **Annotations.** Arrow, line, rectangle, ellipse, pen, highlighter, text, and auto-numbered steps. Color 1 is the drawing color. Color 2 is a second well you can switch to. The palette, the eyedropper, and More set the active well. Thickness and font size are in the Size group. Select, drag to move, `Delete` to remove. Double-click text to edit it. New steps use the next number; deleting one does not renumber the rest.
 - **Redaction.** Blur or pixelate a dragged rectangle. Strength is 1 (subtle) through 20 (heavy), default 8. Redactions can be selected, moved, and deleted until you save or copy.
 - **History.** Undo/redo covers edits, annotations, and redactions (up to 40 steps). Pixel edits keep a full image copy per step.
 
