@@ -67,3 +67,11 @@ Use a mailbox and an FTP server you control. Do not point FrameIt at an account 
     - After a cancelled countdown, confirm the previous editor is unchanged when you had dismissed it, and that Save, undo, and Esc-to-close still behave as in M2.
     - Share an image with an unsaved arrow, then press `Ctrl+Z`. Confirm the share did not clear undo.
     - Confirm a second capture during the countdown is ignored until the first wait finishes or is cancelled.
+
+12. **Region capture is 1:1 device pixels**
+    - On a display scaled above 100% (150% is a good check), put up a window or a control whose device-pixel size you know. The selection label shows `width x height` while you drag.
+    - Use the loupe while you select that rectangle, then release.
+    - Confirm the saved PNG is exactly that wide and tall. A 400×200 selection is a 400×200 image, not a DIP-sized image and not a magnified one.
+    - Open the PNG at 100% zoom in Paint. Text and edges match the screen 1:1. The loupe's zoomed patch is not in the file.
+    - Repeat on a second monitor at a different scale, and once with a selection that crosses the boundary.
+    - Snap to a window edge. Confirm the image lines up with that edge and the pixels are still 1:1. Snapping does not zoom or stretch.

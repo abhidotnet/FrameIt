@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using FrameIt.Interop;
 using Windows.Graphics.Capture;
 
@@ -112,10 +113,9 @@ public sealed class CaptureService
             }
 
             using var temp = Image.FromHbitmap(hBitmap);
-            var bitmap = new Bitmap(temp.Width, temp.Height, PixelFormat.Format32bppPArgb);
-            using var graphics = Graphics.FromImage(bitmap);
-            graphics.DrawImageUnscaled(temp, 0, 0);
-            return bitmap;
+            // Copy device pixels exactly. GDI+ DrawImage / DrawImageUnscaled scale by the
+            // bitmap's DPI metadata, which on a scaled display magnifies the shot and clips it.
+            return CopyDevicePixels((Bitmap)temp);
         }
         finally
         {
@@ -139,5 +139,31 @@ public sealed class CaptureService
                 NativeMethods.ReleaseDC(IntPtr.Zero, desktopDc);
             }
         }
+    }
+
+    private static Bitmap CopyDevicePixels(Bitmap source)
+    {
+        var destination = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+        destination.SetResolution(96, 96);
+        var rect = new Rectangle(0, 0, source.Width, source.Height);
+        var sourceData = source.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        var destinationData = destination.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var rowBytes = source.Width * 4;
+            var buffer = new byte[rowBytes];
+            for (var y = 0; y < source.Height; y++)
+            {
+                Marshal.Copy(sourceData.Scan0 + (y * sourceData.Stride), buffer, 0, rowBytes);
+                Marshal.Copy(buffer, 0, destinationData.Scan0 + (y * destinationData.Stride), rowBytes);
+            }
+        }
+        finally
+        {
+            source.UnlockBits(sourceData);
+            destination.UnlockBits(destinationData);
+        }
+
+        return destination;
     }
 }

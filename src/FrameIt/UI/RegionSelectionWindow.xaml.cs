@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using FrameIt.Editing;
+using FrameIt.Interop;
 using FrameIt.Models;
 using FrameIt.Services;
 using Drawing = System.Drawing;
@@ -19,42 +22,110 @@ public enum SelectionMode
 
 public partial class RegionSelectionWindow : Window
 {
-    private readonly WindowEdgeSnapService _edgeSnapService;
-    private readonly SelectionMode _selectionMode;
-    private readonly AppSettings _settings;
-    private readonly Drawing.Rectangle _virtualBounds;
-    private IReadOnlyList<Drawing.Rectangle> _snapTargets = Array.Empty<Drawing.Rectangle>();
-    private BitmapSource? _background;
-    private Drawing.Point _startScreen;
-    private Drawing.Point _currentScreen;
-    private Drawing.Rectangle? _selection;
-    private bool _dragging;
+    private readonly Drawing.Rectangle _monitor;
+    private readonly SelectionSession _session;
+    private readonly BitmapSource _frozen;
+    private BitmapSource? _slice;
+    private double _scaleX = 1;
+    private double _scaleY = 1;
+    private bool _pinning;
 
-    public RegionSelectionWindow(WindowEdgeSnapService edgeSnapService, SelectionMode selectionMode, AppSettings settings)
+    private RegionSelectionWindow(Drawing.Rectangle monitor, SelectionSession session)
     {
         InitializeComponent();
-        _edgeSnapService = edgeSnapService;
-        _selectionMode = selectionMode;
-        _settings = settings;
-        _virtualBounds = Forms.SystemInformation.VirtualScreen;
-
-        Left = _virtualBounds.Left;
-        Top = _virtualBounds.Top;
-        Width = _virtualBounds.Width;
-        Height = _virtualBounds.Height;
-        Loaded += OnLoaded;
+        _monitor = monitor;
+        _session = session;
+        _frozen = session.Frozen;
+        var scale = ScaleFor(monitor);
+        _scaleX = scale.X;
+        _scaleY = scale.Y;
+        Width = monitor.Width / _scaleX;
+        Height = monitor.Height / _scaleY;
+        _session.Changed += () => InvalidateVisual();
+        Loaded += (_, _) => PinToMonitor();
     }
 
-    public Drawing.Rectangle? SelectedRegion { get; private set; }
-
-    public static Drawing.Rectangle? SelectRegion(
+    public static Drawing.Bitmap? CaptureRegion(
         WindowEdgeSnapService edgeSnapService,
         SelectionMode selectionMode,
         AppSettings settings)
     {
-        var picker = new RegionSelectionWindow(edgeSnapService, selectionMode, settings);
-        var accepted = picker.ShowDialog();
-        return accepted == true ? picker.SelectedRegion : null;
+        var virtualBounds = Forms.SystemInformation.VirtualScreen;
+        if (virtualBounds.Width < 2 || virtualBounds.Height < 2)
+        {
+            return null;
+        }
+
+        // Freeze the desktop before any overlay exists. The loupe is drawn later, on top of this
+        // bitmap, and is never copied into it.
+        using var desktop = new CaptureService().CaptureRectangle(virtualBounds);
+        var frozen = BitmapInterop.ToBitmapSource(desktop);
+        var session = new SelectionSession(desktop, frozen, virtualBounds, selectionMode, settings, edgeSnapService);
+        var monitors = Monitors(virtualBounds);
+        var windows = new List<RegionSelectionWindow>(monitors.Count);
+        foreach (var monitor in monitors)
+        {
+            windows.Add(new RegionSelectionWindow(monitor, session));
+        }
+
+        var frame = new DispatcherFrame();
+        session.Finished += () => frame.Continue = false;
+        try
+        {
+            foreach (var window in windows)
+            {
+                window.Closed += (_, _) => session.Cancel();
+                window.Show();
+            }
+
+            var focused = windows[0];
+            var cursor = ReadCursor();
+            foreach (var window in windows)
+            {
+                if (Contains(window._monitor, cursor))
+                {
+                    focused = window;
+                    break;
+                }
+            }
+
+            focused.Activate();
+            focused.Focus();
+            Dispatcher.PushFrame(frame);
+        }
+        finally
+        {
+            foreach (var window in windows)
+            {
+                if (window.IsLoaded)
+                {
+                    window.Close();
+                }
+            }
+        }
+
+        return session.Result;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        PinToMonitor();
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (newDpi.DpiScaleX > 0 && newDpi.DpiScaleY > 0)
+        {
+            _scaleX = newDpi.DpiScaleX;
+            _scaleY = newDpi.DpiScaleY;
+            Width = _monitor.Width / _scaleX;
+            Height = _monitor.Height / _scaleY;
+        }
+
+        PinToMonitor();
+        InvalidateVisual();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -70,201 +141,126 @@ public partial class RegionSelectionWindow : Window
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-
-        if (_background is null)
+        var slice = EnsureSlice();
+        if (slice is null)
         {
             return;
         }
 
-        dc.DrawImage(_background, new WpfRect(0, 0, ActualWidth, ActualHeight));
+        var dest = new WpfRect(0, 0, slice.PixelWidth / _scaleX, slice.PixelHeight / _scaleY);
+        dc.DrawImage(slice, dest);
         dc.DrawRectangle(
             new SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 0, 0, 0)),
             null,
-            new WpfRect(0, 0, ActualWidth, ActualHeight));
+            dest);
 
-        if (_selection.HasValue)
+        if (_session.Selection is Drawing.Rectangle selection)
         {
-            var localRect = ToLocalRect(_selection.Value);
-            DrawUndimmedSelection(dc, _selection.Value, localRect);
-            dc.DrawRectangle(null, new System.Windows.Media.Pen(System.Windows.Media.Brushes.DeepSkyBlue, 2), localRect);
-            DrawSelectionLabel(dc, _selection.Value, localRect);
+            var intersection = Drawing.Rectangle.Intersect(selection, _monitor);
+            if (intersection.Width > 0 && intersection.Height > 0)
+            {
+                var local = ToDip(intersection);
+                DrawUndimmed(dc, slice, intersection, local);
+                dc.DrawRectangle(null, new System.Windows.Media.Pen(System.Windows.Media.Brushes.DeepSkyBlue, 2), local);
+                if (Contains(_monitor, new Drawing.Point(selection.Left, selection.Top)))
+                {
+                    DrawSelectionLabel(dc, selection, local);
+                }
+            }
         }
 
         DrawLoupe(dc);
-    }
-
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        _snapTargets = _edgeSnapService.GetCandidateWindowBounds();
-
-        var capture = new CaptureService();
-        using var bmp = capture.CaptureRectangle(_virtualBounds);
-        _background = BitmapInterop.ToBitmapSource(bmp);
-        _currentScreen = Forms.Cursor.Position;
-        Focus();
-        CaptureMouse();
-        InvalidateVisual();
     }
 
     private void OnMouseDown(object sender, WpfInput.MouseButtonEventArgs e)
     {
         if (e.RightButton == WpfInput.MouseButtonState.Pressed)
         {
-            DialogResult = false;
+            _session.Cancel();
             return;
         }
 
-        var snapped = Snap(ToScreenPoint(e.GetPosition(this)));
-        _currentScreen = snapped;
-
-        if (_selectionMode == SelectionMode.FixedSize)
+        _session.Begin(ReadCursor());
+        if (!_session.IsFinished)
         {
-            _selection = ClampToVirtualBounds(new Drawing.Rectangle(
-                snapped.X,
-                snapped.Y,
-                _settings.FixedRegionWidth,
-                _settings.FixedRegionHeight));
-            SelectedRegion = _selection;
-            DialogResult = _selection.HasValue;
-            return;
+            CaptureMouse();
         }
 
-        _startScreen = snapped;
-        _dragging = true;
-        _selection = Drawing.Rectangle.Empty;
-        InvalidateVisual();
+        e.Handled = true;
     }
 
     private void OnMouseMove(object sender, WpfInput.MouseEventArgs e)
     {
-        _currentScreen = Snap(ToScreenPoint(e.GetPosition(this)));
-
-        if (_selectionMode == SelectionMode.FixedSize)
-        {
-            _selection = ClampToVirtualBounds(new Drawing.Rectangle(
-                _currentScreen.X,
-                _currentScreen.Y,
-                _settings.FixedRegionWidth,
-                _settings.FixedRegionHeight));
-            InvalidateVisual();
-            return;
-        }
-
-        if (_dragging)
-        {
-            _selection = Normalize(_startScreen, _currentScreen);
-            InvalidateVisual();
-        }
-        else
-        {
-            InvalidateVisual();
-        }
+        _session.Move(ReadCursor());
     }
 
     private void OnMouseUp(object sender, WpfInput.MouseButtonEventArgs e)
     {
-        if (_selectionMode != SelectionMode.Freeform || !_dragging)
+        if (IsMouseCaptured)
         {
-            return;
+            ReleaseMouseCapture();
         }
 
-        _dragging = false;
-
-        if (_selection.HasValue && _selection.Value.Width >= 2 && _selection.Value.Height >= 2)
-        {
-            SelectedRegion = ClampToVirtualBounds(_selection.Value);
-            if (SelectedRegion.HasValue)
-            {
-                DialogResult = true;
-            }
-        }
-        else
-        {
-            _selection = null;
-            InvalidateVisual();
-        }
+        _session.End();
+        e.Handled = true;
     }
 
     private void OnKeyDown(object sender, WpfInput.KeyEventArgs e)
     {
         if (e.Key == WpfInput.Key.Escape)
         {
-            DialogResult = false;
+            _session.Cancel();
+            e.Handled = true;
         }
     }
 
-    private Drawing.Point ToScreenPoint(WpfPoint localPoint)
+    private BitmapSource? EnsureSlice()
     {
-        return new Drawing.Point(
-            _virtualBounds.Left + (int)Math.Round(localPoint.X),
-            _virtualBounds.Top + (int)Math.Round(localPoint.Y));
-    }
+        if (_slice is not null)
+        {
+            return _slice;
+        }
 
-    private Drawing.Point Snap(Drawing.Point point)
-    {
-        return _edgeSnapService.SnapPoint(point, _snapTargets, threshold: 12);
-    }
-
-    private Drawing.Rectangle Normalize(Drawing.Point a, Drawing.Point b)
-    {
-        var left = Math.Min(a.X, b.X);
-        var top = Math.Min(a.Y, b.Y);
-        var right = Math.Max(a.X, b.X);
-        var bottom = Math.Max(a.Y, b.Y);
-        return ClampToVirtualBounds(Drawing.Rectangle.FromLTRB(left, top, right, bottom)) ?? Drawing.Rectangle.Empty;
-    }
-
-    private Drawing.Rectangle? ClampToVirtualBounds(Drawing.Rectangle rect)
-    {
-        var left = Math.Max(rect.Left, _virtualBounds.Left);
-        var top = Math.Max(rect.Top, _virtualBounds.Top);
-        var right = Math.Min(rect.Right, _virtualBounds.Right);
-        var bottom = Math.Min(rect.Bottom, _virtualBounds.Bottom);
-
-        var width = right - left;
-        var height = bottom - top;
-        if (width <= 0 || height <= 0)
+        var x = _monitor.Left - _session.VirtualBounds.Left;
+        var y = _monitor.Top - _session.VirtualBounds.Top;
+        if (x < 0 || y < 0 || x >= _frozen.PixelWidth || y >= _frozen.PixelHeight)
         {
             return null;
         }
 
-        return new Drawing.Rectangle(left, top, width, height);
+        var width = Math.Min(_monitor.Width, _frozen.PixelWidth - x);
+        var height = Math.Min(_monitor.Height, _frozen.PixelHeight - y);
+        if (width < 1 || height < 1)
+        {
+            return null;
+        }
+
+        var cropped = new CroppedBitmap(_frozen, new Int32Rect(x, y, width, height));
+        cropped.Freeze();
+        _slice = cropped;
+        return _slice;
     }
 
-    private WpfRect ToLocalRect(Drawing.Rectangle screenRect)
+    private void DrawUndimmed(DrawingContext dc, BitmapSource slice, Drawing.Rectangle intersection, WpfRect local)
     {
-        return new WpfRect(
-            screenRect.Left - _virtualBounds.Left,
-            screenRect.Top - _virtualBounds.Top,
-            screenRect.Width,
-            screenRect.Height);
-    }
-
-    private void DrawUndimmedSelection(DrawingContext dc, Drawing.Rectangle screenRect, WpfRect localRect)
-    {
-        if (_background is null)
+        var x = intersection.Left - _monitor.Left;
+        var y = intersection.Top - _monitor.Top;
+        var width = Math.Min(intersection.Width, slice.PixelWidth - x);
+        var height = Math.Min(intersection.Height, slice.PixelHeight - y);
+        if (x < 0 || y < 0 || width < 1 || height < 1)
         {
             return;
         }
 
-        var x = screenRect.Left - _virtualBounds.Left;
-        var y = screenRect.Top - _virtualBounds.Top;
-        var width = Math.Max(1, Math.Min(screenRect.Width, _background.PixelWidth - x));
-        var height = Math.Max(1, Math.Min(screenRect.Height, _background.PixelHeight - y));
-        var crop = new Int32Rect(
-            x,
-            y,
-            width,
-            height);
-
-        var undimmed = new CroppedBitmap(_background, crop);
+        var undimmed = new CroppedBitmap(slice, new Int32Rect(x, y, width, height));
         undimmed.Freeze();
-        dc.DrawImage(undimmed, localRect);
+        // DIP size is physical pixels divided by this monitor's scale, so the preview is not magnified.
+        dc.DrawImage(undimmed, new WpfRect(local.X, local.Y, width / _scaleX, height / _scaleY));
     }
 
     private void DrawSelectionLabel(DrawingContext dc, Drawing.Rectangle selected, WpfRect localRect)
     {
-        var text = $"{selected.Width} x {selected.Height}";
+        var text = selected.Width + " x " + selected.Height;
         var formatted = new FormattedText(
             text,
             System.Globalization.CultureInfo.InvariantCulture,
@@ -284,38 +280,42 @@ public partial class RegionSelectionWindow : Window
 
     private void DrawLoupe(DrawingContext dc)
     {
-        if (_background is null)
+        if (!Contains(_monitor, _session.Cursor))
         {
             return;
         }
 
-        var loupeSize = 140.0;
-        var sampleSize = 28;
-        var localCursor = new WpfPoint(
-            _currentScreen.X - _virtualBounds.Left,
-            _currentScreen.Y - _virtualBounds.Top);
+        var sampleSize = Math.Min(28, Math.Min(_frozen.PixelWidth, _frozen.PixelHeight));
+        if (sampleSize < 1)
+        {
+            return;
+        }
 
+        var bitmapX = _session.Cursor.X - _session.VirtualBounds.Left;
+        var bitmapY = _session.Cursor.Y - _session.VirtualBounds.Top;
+        var sampleLeft = Math.Clamp(bitmapX - (sampleSize / 2), 0, Math.Max(0, _frozen.PixelWidth - sampleSize));
+        var sampleTop = Math.Clamp(bitmapY - (sampleSize / 2), 0, Math.Max(0, _frozen.PixelHeight - sampleSize));
+        var cropped = new CroppedBitmap(_frozen, new Int32Rect(sampleLeft, sampleTop, sampleSize, sampleSize));
+        cropped.Freeze();
+
+        const double loupeSize = 140;
+        var localCursor = ToDip(new Drawing.Rectangle(_session.Cursor.X, _session.Cursor.Y, 1, 1));
         var loupeX = localCursor.X + 28;
         var loupeY = localCursor.Y + 28;
-        if (loupeX + loupeSize > ActualWidth)
+        var limitWidth = Math.Max(Width, ActualWidth);
+        var limitHeight = Math.Max(Height, ActualHeight);
+        if (loupeX + loupeSize > limitWidth)
         {
             loupeX = localCursor.X - loupeSize - 28;
         }
 
-        if (loupeY + loupeSize > ActualHeight)
+        if (loupeY + loupeSize > limitHeight)
         {
             loupeY = localCursor.Y - loupeSize - 28;
         }
 
-        loupeX = Math.Clamp(loupeX, 0, Math.Max(0, ActualWidth - loupeSize));
-        loupeY = Math.Clamp(loupeY, 0, Math.Max(0, ActualHeight - loupeSize));
-
-        var sampleLeft = Math.Clamp((int)localCursor.X - sampleSize / 2, 0, Math.Max(0, _background.PixelWidth - sampleSize));
-        var sampleTop = Math.Clamp((int)localCursor.Y - sampleSize / 2, 0, Math.Max(0, _background.PixelHeight - sampleSize));
-        var crop = new Int32Rect(sampleLeft, sampleTop, sampleSize, sampleSize);
-        var cropped = new CroppedBitmap(_background, crop);
-        cropped.Freeze();
-
+        loupeX = Math.Clamp(loupeX, 0, Math.Max(0, limitWidth - loupeSize));
+        loupeY = Math.Clamp(loupeY, 0, Math.Max(0, limitHeight - loupeSize));
         var loupeRect = new WpfRect(loupeX, loupeY, loupeSize, loupeSize);
         dc.DrawRectangle(
             new SolidColorBrush(System.Windows.Media.Color.FromArgb(220, 20, 20, 20)),
@@ -323,8 +323,8 @@ public partial class RegionSelectionWindow : Window
             loupeRect);
         dc.DrawImage(cropped, loupeRect);
 
-        var centerX = loupeRect.Left + loupeRect.Width / 2;
-        var centerY = loupeRect.Top + loupeRect.Height / 2;
+        var centerX = loupeRect.Left + (loupeRect.Width / 2);
+        var centerY = loupeRect.Top + (loupeRect.Height / 2);
         dc.DrawLine(
             new System.Windows.Media.Pen(System.Windows.Media.Brushes.Red, 1),
             new WpfPoint(centerX, loupeRect.Top),
@@ -333,5 +333,296 @@ public partial class RegionSelectionWindow : Window
             new System.Windows.Media.Pen(System.Windows.Media.Brushes.Red, 1),
             new WpfPoint(loupeRect.Left, centerY),
             new WpfPoint(loupeRect.Right, centerY));
+    }
+
+    private WpfRect ToDip(Drawing.Rectangle physical)
+    {
+        return new WpfRect(
+            (physical.Left - _monitor.Left) / _scaleX,
+            (physical.Top - _monitor.Top) / _scaleY,
+            physical.Width / _scaleX,
+            physical.Height / _scaleY);
+    }
+
+    private void PinToMonitor()
+    {
+        if (_pinning)
+        {
+            return;
+        }
+
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _pinning = true;
+        try
+        {
+            NativeMethods.SetWindowPos(
+                hwnd,
+                NativeMethods.HwndTopMost,
+                _monitor.Left,
+                _monitor.Top,
+                _monitor.Width,
+                _monitor.Height,
+                NativeMethods.SwpNoActivate);
+        }
+        finally
+        {
+            _pinning = false;
+        }
+    }
+
+    private static Drawing.Point ReadCursor()
+    {
+        if (NativeMethods.GetCursorPos(out var point))
+        {
+            return new Drawing.Point(point.X, point.Y);
+        }
+
+        return Forms.Cursor.Position;
+    }
+
+    private static bool Contains(Drawing.Rectangle rect, Drawing.Point point)
+    {
+        return point.X >= rect.Left && point.X < rect.Right && point.Y >= rect.Top && point.Y < rect.Bottom;
+    }
+
+    private static (double X, double Y) ScaleFor(Drawing.Rectangle monitor)
+    {
+        var probe = new NativeMethods.Point
+        {
+            X = monitor.Left + Math.Max(0, monitor.Width / 2),
+            Y = monitor.Top + Math.Max(0, monitor.Height / 2)
+        };
+        var handle = NativeMethods.MonitorFromPoint(probe, NativeMethods.MonitorDefaultToNearest);
+        if (handle != IntPtr.Zero &&
+            NativeMethods.GetDpiForMonitor(handle, NativeMethods.MdtEffectiveDpi, out var dpiX, out var dpiY) == 0 &&
+            dpiX >= 96 &&
+            dpiY >= 96)
+        {
+            return (dpiX / 96.0, dpiY / 96.0);
+        }
+
+        return (1, 1);
+    }
+
+    private static IReadOnlyList<Drawing.Rectangle> Monitors(Drawing.Rectangle virtualBounds)
+    {
+        var monitors = new List<Drawing.Rectangle>();
+        foreach (var screen in Forms.Screen.AllScreens)
+        {
+            if (screen.Bounds.Width > 0 && screen.Bounds.Height > 0)
+            {
+                monitors.Add(screen.Bounds);
+            }
+        }
+
+        if (monitors.Count == 0)
+        {
+            monitors.Add(virtualBounds);
+        }
+
+        return monitors;
+    }
+
+    private sealed class SelectionSession
+    {
+        private readonly Drawing.Bitmap _desktop;
+        private readonly WindowEdgeSnapService _edgeSnapService;
+        private readonly SelectionMode _selectionMode;
+        private readonly AppSettings _settings;
+        private readonly IReadOnlyList<Drawing.Rectangle> _snapTargets;
+        private bool _finished;
+        private bool _dragging;
+        private Drawing.Point _dragStart;
+
+        public SelectionSession(
+            Drawing.Bitmap desktop,
+            BitmapSource frozen,
+            Drawing.Rectangle virtualBounds,
+            SelectionMode selectionMode,
+            AppSettings settings,
+            WindowEdgeSnapService edgeSnapService)
+        {
+            _desktop = desktop;
+            Frozen = frozen;
+            VirtualBounds = virtualBounds;
+            _selectionMode = selectionMode;
+            _settings = settings;
+            _edgeSnapService = edgeSnapService;
+            _snapTargets = edgeSnapService.GetCandidateWindowBounds();
+            Cursor = ReadCursor();
+        }
+
+        public BitmapSource Frozen { get; }
+
+        public Drawing.Rectangle VirtualBounds { get; }
+
+        public Drawing.Point Cursor { get; private set; }
+
+        public Drawing.Rectangle? Selection { get; private set; }
+
+        public Drawing.Bitmap? Result { get; private set; }
+
+        public bool IsFinished => _finished;
+
+        public event Action? Changed;
+
+        public event Action? Finished;
+
+        public void Move(Drawing.Point physical)
+        {
+            if (_finished)
+            {
+                return;
+            }
+
+            Cursor = Snap(physical);
+            if (_selectionMode == SelectionMode.FixedSize)
+            {
+                Selection = Clamp(new Drawing.Rectangle(
+                    Cursor.X,
+                    Cursor.Y,
+                    _settings.FixedRegionWidth,
+                    _settings.FixedRegionHeight));
+            }
+            else if (_dragging)
+            {
+                Selection = Normalize(_dragStart, Cursor);
+            }
+
+            Changed?.Invoke();
+        }
+
+        public void Begin(Drawing.Point physical)
+        {
+            if (_finished)
+            {
+                return;
+            }
+
+            var snapped = Snap(physical);
+            Cursor = snapped;
+            if (_selectionMode == SelectionMode.FixedSize)
+            {
+                var rect = Clamp(new Drawing.Rectangle(
+                    snapped.X,
+                    snapped.Y,
+                    _settings.FixedRegionWidth,
+                    _settings.FixedRegionHeight));
+                if (rect.HasValue)
+                {
+                    Accept(rect.Value);
+                }
+
+                return;
+            }
+
+            _dragging = true;
+            _dragStart = snapped;
+            Selection = Drawing.Rectangle.Empty;
+            Changed?.Invoke();
+        }
+
+        public void End()
+        {
+            if (_finished || _selectionMode != SelectionMode.Freeform || !_dragging)
+            {
+                return;
+            }
+
+            _dragging = false;
+            if (Selection is Drawing.Rectangle rect && rect.Width >= 2 && rect.Height >= 2)
+            {
+                Accept(rect);
+                return;
+            }
+
+            Selection = null;
+            Changed?.Invoke();
+        }
+
+        public void Cancel()
+        {
+            if (_finished)
+            {
+                return;
+            }
+
+            _finished = true;
+            Result = null;
+            Finished?.Invoke();
+        }
+
+        private void Accept(Drawing.Rectangle selection)
+        {
+            if (_finished)
+            {
+                return;
+            }
+
+            _finished = true;
+            try
+            {
+                Result = Crop(selection);
+            }
+            catch (ArgumentException)
+            {
+                Result = null;
+            }
+
+            Finished?.Invoke();
+        }
+
+        private Drawing.Bitmap? Crop(Drawing.Rectangle selection)
+        {
+            var local = new Drawing.Rectangle(
+                selection.Left - VirtualBounds.Left,
+                selection.Top - VirtualBounds.Top,
+                selection.Width,
+                selection.Height);
+            local = Drawing.Rectangle.Intersect(local, new Drawing.Rectangle(0, 0, _desktop.Width, _desktop.Height));
+            if (local.Width < 2 || local.Height < 2)
+            {
+                return null;
+            }
+
+            return ImageEffects.Crop(_desktop, local);
+        }
+
+        private Drawing.Point Snap(Drawing.Point physical)
+        {
+            // Window edges from GetWindowRect are device pixels. Snapping replaces a coordinate;
+            // it does not scale the bitmap.
+            return _edgeSnapService.SnapPoint(physical, _snapTargets, threshold: 12);
+        }
+
+        private Drawing.Rectangle Normalize(Drawing.Point a, Drawing.Point b)
+        {
+            var left = Math.Min(a.X, b.X);
+            var top = Math.Min(a.Y, b.Y);
+            var right = Math.Max(a.X, b.X);
+            var bottom = Math.Max(a.Y, b.Y);
+            return Clamp(Drawing.Rectangle.FromLTRB(left, top, right, bottom)) ?? Drawing.Rectangle.Empty;
+        }
+
+        private Drawing.Rectangle? Clamp(Drawing.Rectangle rect)
+        {
+            var left = Math.Max(rect.Left, VirtualBounds.Left);
+            var top = Math.Max(rect.Top, VirtualBounds.Top);
+            var right = Math.Min(rect.Right, VirtualBounds.Right);
+            var bottom = Math.Min(rect.Bottom, VirtualBounds.Bottom);
+            var width = right - left;
+            var height = bottom - top;
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            return new Drawing.Rectangle(left, top, width, height);
+        }
     }
 }

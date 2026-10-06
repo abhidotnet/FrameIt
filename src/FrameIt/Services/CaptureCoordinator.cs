@@ -52,46 +52,61 @@ public sealed class CaptureCoordinator
         delayWatch.Stop();
         var delayElapsed = delayWatch.Elapsed;
 
-        var bounds = await ResolveBoundsAsync(mode, settings);
-        if (!bounds.HasValue)
+        Bitmap? bitmap;
+        if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
+        {
+            var selectionMode = mode == CaptureMode.FixedRegion
+                ? FrameIt.UI.SelectionMode.FixedSize
+                : FrameIt.UI.SelectionMode.Freeform;
+            bitmap = RegionSelectionWindow.CaptureRegion(_edgeSnapService, selectionMode, settings);
+        }
+        else
+        {
+            var bounds = await ResolveBoundsAsync(mode, settings);
+            bitmap = bounds.HasValue ? _captureService.CaptureRectangle(bounds.Value) : null;
+        }
+
+        if (bitmap is null)
         {
             return;
         }
 
-        using var bitmap = _captureService.CaptureRectangle(bounds.Value);
-        var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
-
-        string? filePath = null;
-        if (settings.AutoSaveCaptures)
+        using (bitmap)
         {
-            Directory.CreateDirectory(settings.CaptureFolder);
-            filePath = Path.Combine(
-                settings.CaptureFolder,
-                $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-            bitmap.Save(filePath, ImageFormat.Png);
-        }
+            var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
 
-        var source = BitmapInterop.ToBitmapSource(bitmap);
-        BitmapInterop.TrySetClipboard(source);
-
-        var editor = new EditorWindow(bitmap, filePath, _getSettings, _persistSettings);
-        editor.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_editor, editor))
+            string? filePath = null;
+            if (settings.AutoSaveCaptures)
             {
-                _editor = null;
+                Directory.CreateDirectory(settings.CaptureFolder);
+                filePath = Path.Combine(
+                    settings.CaptureFolder,
+                    $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+                bitmap.Save(filePath, ImageFormat.Png);
             }
-        };
-        _editor = editor;
-        editor.Show();
-        editor.Activate();
 
-        if (settings.EnableTimingLogs)
-        {
-            var provider = _captureService.IsWindowsGraphicsCaptureSupported()
-                ? "gdi-fallback-wgc-available"
-                : "gdi-fallback";
-            _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
+            var source = BitmapInterop.ToBitmapSource(bitmap);
+            BitmapInterop.TrySetClipboard(source);
+
+            var editor = new EditorWindow(bitmap, filePath, _getSettings, _persistSettings);
+            editor.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_editor, editor))
+                {
+                    _editor = null;
+                }
+            };
+            _editor = editor;
+            editor.Show();
+            editor.Activate();
+
+            if (settings.EnableTimingLogs)
+            {
+                var provider = _captureService.IsWindowsGraphicsCaptureSupported()
+                    ? "gdi-fallback-wgc-available"
+                    : "gdi-fallback";
+                _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
+            }
         }
     }
 
@@ -101,8 +116,6 @@ public sealed class CaptureCoordinator
 
         return mode switch
         {
-            CaptureMode.Region => RegionSelectionWindow.SelectRegion(_edgeSnapService, FrameIt.UI.SelectionMode.Freeform, settings),
-            CaptureMode.FixedRegion => RegionSelectionWindow.SelectRegion(_edgeSnapService, FrameIt.UI.SelectionMode.FixedSize, settings),
             CaptureMode.ActiveWindow => _captureService.GetActiveWindowBounds(),
             CaptureMode.FullScreen => _captureService.GetMonitorUnderCursorBounds(),
             _ => null

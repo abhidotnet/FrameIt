@@ -18,6 +18,7 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
    - In region mode, move cursor near window edges.
    - Confirm selection edge snaps near window boundaries.
    - Confirm magnifier loupe tracks near cursor and shows zoomed pixels.
+   - Confirm the saved PNG does not contain that zoomed loupe. The magnification is preview-only.
 
 4. **Full-screen hotkey**
    - Press `Shift+PrintScreen`.
@@ -48,8 +49,11 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
 
 9. **Multi-monitor + mixed DPI pixel correctness**
    - Set monitors to different scale values (for example 100% and 150%).
-   - Capture region/full screen on each monitor.
-   - Confirm selected pixel regions match resulting PNG dimensions and visual content.
+   - On the 150% monitor, region-capture a window or control whose size you know in device pixels (the selection label shows `width x height`).
+   - Confirm the PNG is that many pixels, not the DIP size and not a magnified crop. At 100% zoom in Paint, text and edges match the screen 1:1.
+   - Repeat on the 100% monitor, and once with a selection that crosses both monitors.
+   - Snap to a window edge and confirm the image still lines up 1:1. Snapping must not zoom or stretch the pixels.
+   - Full-screen capture each monitor and confirm the PNG matches that monitor's device-pixel size.
 
 10. **Viewer close + timing goals**
     - Confirm `Esc` closes viewer window.

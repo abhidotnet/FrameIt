@@ -123,4 +123,17 @@ internal static class NativeMethods
 
     [DllImport("shcore.dll")]
     internal static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    internal const uint SwpNoActivate = 0x0010;
+    internal static readonly IntPtr HwndTopMost = new(-1);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint uFlags);
 }

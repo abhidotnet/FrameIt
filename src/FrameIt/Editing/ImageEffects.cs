@@ -25,7 +25,14 @@ public static class ImageEffects
         graphics.CompositingMode = CompositingMode.SourceCopy;
         graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         graphics.PixelOffsetMode = PixelOffsetMode.Half;
-        graphics.DrawImage(source, new Rectangle(0, 0, source.Width, source.Height));
+        graphics.DrawImage(
+            source,
+            new Rectangle(0, 0, source.Width, source.Height),
+            0,
+            0,
+            source.Width,
+            source.Height,
+            GraphicsUnit.Pixel);
         return clone;
     }
 

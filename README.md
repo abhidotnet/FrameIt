@@ -92,7 +92,7 @@ The private-key field is a file path. The key file itself stays where you put it
 
 - Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
-- Region overlay with a magnifier loupe and basic edge snapping.
+- Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of device pixels, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
 - Full screen captures the monitor under the cursor.
 - Active window and fixed-size region capture.
 - Per-monitor DPI (`PerMonitorV2`).
