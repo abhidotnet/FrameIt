@@ -1,11 +1,12 @@
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FrameIt.Models;
 using FrameIt.Services;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
+using WpfInput = System.Windows.Input;
+using WpfPoint = System.Windows.Point;
 using WpfRect = System.Windows.Rect;
 
 namespace FrameIt.UI;
@@ -76,13 +77,16 @@ public partial class RegionSelectionWindow : Window
         }
 
         dc.DrawImage(_background, new WpfRect(0, 0, ActualWidth, ActualHeight));
-        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)), null, new WpfRect(0, 0, ActualWidth, ActualHeight));
+        dc.DrawRectangle(
+            new SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 0, 0, 0)),
+            null,
+            new WpfRect(0, 0, ActualWidth, ActualHeight));
 
         if (_selection.HasValue)
         {
             var localRect = ToLocalRect(_selection.Value);
             DrawUndimmedSelection(dc, _selection.Value, localRect);
-            dc.DrawRectangle(null, new Pen(Brushes.DeepSkyBlue, 2), localRect);
+            dc.DrawRectangle(null, new System.Windows.Media.Pen(System.Windows.Media.Brushes.DeepSkyBlue, 2), localRect);
             DrawSelectionLabel(dc, _selection.Value, localRect);
         }
 
@@ -102,9 +106,9 @@ public partial class RegionSelectionWindow : Window
         InvalidateVisual();
     }
 
-    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnMouseDown(object sender, WpfInput.MouseButtonEventArgs e)
     {
-        if (e.RightButton == MouseButtonState.Pressed)
+        if (e.RightButton == WpfInput.MouseButtonState.Pressed)
         {
             DialogResult = false;
             return;
@@ -131,7 +135,7 @@ public partial class RegionSelectionWindow : Window
         InvalidateVisual();
     }
 
-    private void OnMouseMove(object sender, MouseEventArgs e)
+    private void OnMouseMove(object sender, WpfInput.MouseEventArgs e)
     {
         _currentScreen = Snap(ToScreenPoint(e.GetPosition(this)));
 
@@ -157,7 +161,7 @@ public partial class RegionSelectionWindow : Window
         }
     }
 
-    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    private void OnMouseUp(object sender, WpfInput.MouseButtonEventArgs e)
     {
         if (_selectionMode != SelectionMode.Freeform || !_dragging)
         {
@@ -181,15 +185,15 @@ public partial class RegionSelectionWindow : Window
         }
     }
 
-    private void OnKeyDown(object sender, KeyEventArgs e)
+    private void OnKeyDown(object sender, WpfInput.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if (e.Key == WpfInput.Key.Escape)
         {
             DialogResult = false;
         }
     }
 
-    private Drawing.Point ToScreenPoint(Point localPoint)
+    private Drawing.Point ToScreenPoint(WpfPoint localPoint)
     {
         return new Drawing.Point(
             _virtualBounds.Left + (int)Math.Round(localPoint.X),
@@ -264,15 +268,18 @@ public partial class RegionSelectionWindow : Window
         var formatted = new FormattedText(
             text,
             System.Globalization.CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight,
+            System.Windows.FlowDirection.LeftToRight,
             new Typeface("Segoe UI"),
             14,
-            Brushes.White,
+            System.Windows.Media.Brushes.White,
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
 
         var labelRect = new WpfRect(localRect.X, Math.Max(0, localRect.Y - 28), formatted.Width + 12, 24);
-        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)), null, labelRect);
-        dc.DrawText(formatted, new Point(labelRect.X + 6, labelRect.Y + 4));
+        dc.DrawRectangle(
+            new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 0, 0, 0)),
+            null,
+            labelRect);
+        dc.DrawText(formatted, new WpfPoint(labelRect.X + 6, labelRect.Y + 4));
     }
 
     private void DrawLoupe(DrawingContext dc)
@@ -284,7 +291,7 @@ public partial class RegionSelectionWindow : Window
 
         var loupeSize = 140.0;
         var sampleSize = 28;
-        var localCursor = new Point(
+        var localCursor = new WpfPoint(
             _currentScreen.X - _virtualBounds.Left,
             _currentScreen.Y - _virtualBounds.Top);
 
@@ -310,12 +317,21 @@ public partial class RegionSelectionWindow : Window
         cropped.Freeze();
 
         var loupeRect = new WpfRect(loupeX, loupeY, loupeSize, loupeSize);
-        dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(220, 20, 20, 20)), new Pen(Brushes.White, 1), loupeRect);
+        dc.DrawRectangle(
+            new SolidColorBrush(System.Windows.Media.Color.FromArgb(220, 20, 20, 20)),
+            new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1),
+            loupeRect);
         dc.DrawImage(cropped, loupeRect);
 
         var centerX = loupeRect.Left + loupeRect.Width / 2;
         var centerY = loupeRect.Top + loupeRect.Height / 2;
-        dc.DrawLine(new Pen(Brushes.Red, 1), new Point(centerX, loupeRect.Top), new Point(centerX, loupeRect.Bottom));
-        dc.DrawLine(new Pen(Brushes.Red, 1), new Point(loupeRect.Left, centerY), new Point(loupeRect.Right, centerY));
+        dc.DrawLine(
+            new System.Windows.Media.Pen(System.Windows.Media.Brushes.Red, 1),
+            new WpfPoint(centerX, loupeRect.Top),
+            new WpfPoint(centerX, loupeRect.Bottom));
+        dc.DrawLine(
+            new System.Windows.Media.Pen(System.Windows.Media.Brushes.Red, 1),
+            new WpfPoint(loupeRect.Left, centerY),
+            new WpfPoint(loupeRect.Right, centerY));
     }
 }

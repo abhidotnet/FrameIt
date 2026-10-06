@@ -2,16 +2,17 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using FrameIt.Interop;
 using FrameIt.Models;
+using FrameCaptureMode = FrameIt.Models.CaptureMode;
 
 namespace FrameIt.Services;
 
 public sealed class GlobalHotkeyService : IDisposable
 {
     private readonly HwndSource _source;
-    private readonly Dictionary<int, CaptureMode> _registrations = new();
+    private readonly Dictionary<int, FrameCaptureMode> _registrations = new();
     private bool _disposed;
 
-    public event Action<CaptureMode>? HotkeyPressed;
+    public event Action<FrameCaptureMode>? HotkeyPressed;
 
     public GlobalHotkeyService()
     {
@@ -26,11 +27,11 @@ public sealed class GlobalHotkeyService : IDisposable
         _source.AddHook(WndProc);
     }
 
-    public List<(CaptureMode mode, HotkeyBinding binding)> RegisterAll(AppSettings settings)
+    public List<(FrameCaptureMode mode, HotkeyBinding binding)> RegisterAll(AppSettings settings)
     {
         UnregisterAll();
 
-        var failures = new List<(CaptureMode mode, HotkeyBinding binding)>();
+        var failures = new List<(FrameCaptureMode mode, HotkeyBinding binding)>();
         var pairs = settings.Hotkeys.OrderBy(kvp => kvp.Key).ToArray();
 
         for (var i = 0; i < pairs.Length; i++)

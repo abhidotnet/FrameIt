@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Windows;
+using System.IO;
 using FrameIt.Models;
 using FrameIt.UI;
 
@@ -68,8 +68,8 @@ public sealed class CaptureCoordinator
 
         return mode switch
         {
-            CaptureMode.Region => RegionSelectionWindow.SelectRegion(_edgeSnapService, SelectionMode.Freeform, settings),
-            CaptureMode.FixedRegion => RegionSelectionWindow.SelectRegion(_edgeSnapService, SelectionMode.FixedSize, settings),
+            CaptureMode.Region => RegionSelectionWindow.SelectRegion(_edgeSnapService, FrameIt.UI.SelectionMode.Freeform, settings),
+            CaptureMode.FixedRegion => RegionSelectionWindow.SelectRegion(_edgeSnapService, FrameIt.UI.SelectionMode.FixedSize, settings),
             CaptureMode.ActiveWindow => _captureService.GetActiveWindowBounds(),
             CaptureMode.FullScreen => _captureService.GetMonitorUnderCursorBounds(),
             _ => null
@@ -82,7 +82,7 @@ public sealed class CaptureCoordinator
         {
             try
             {
-                Clipboard.SetImage(source);
+                System.Windows.Clipboard.SetImage(source);
                 return;
             }
             catch

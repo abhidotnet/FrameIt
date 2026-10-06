@@ -1,5 +1,5 @@
 using System.Windows;
-using System.Windows.Input;
+using WpfInput = System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 namespace FrameIt.UI;
@@ -24,9 +24,9 @@ public partial class ViewerWindow : Window
         return bitmap;
     }
 
-    private void OnKeyDown(object sender, KeyEventArgs e)
+    private void OnKeyDown(object sender, WpfInput.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if (e.Key == WpfInput.Key.Escape)
         {
             Close();
         }

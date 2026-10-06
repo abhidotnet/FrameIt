@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using FrameIt.Models;
@@ -8,7 +9,7 @@ using Forms = System.Windows.Forms;
 
 namespace FrameIt;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
     private readonly SemaphoreSlim _captureLock = new(1, 1);
@@ -89,7 +90,7 @@ public partial class App : Application
             return true;
         }
 
-        MessageBox.Show(
+        System.Windows.MessageBox.Show(
             "FrameIt is already running in the tray.",
             "FrameIt",
             MessageBoxButton.OK,

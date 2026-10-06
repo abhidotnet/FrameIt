@@ -10,5 +10,6 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>FrameIt</AssemblyName>
     <RootNamespace>FrameIt</RootNamespace>
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 </Project>

@@ -48,13 +48,13 @@ public partial class SettingsWindow : Window
     {
         if (!int.TryParse(FixedWidthTextBox.Text, out var width) || width < 32)
         {
-            MessageBox.Show(this, "Fixed width must be a number >= 32.", "FrameIt", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Fixed width must be a number >= 32.", "FrameIt", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (!int.TryParse(FixedHeightTextBox.Text, out var height) || height < 32)
         {
-            MessageBox.Show(this, "Fixed height must be a number >= 32.", "FrameIt", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Fixed height must be a number >= 32.", "FrameIt", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -70,7 +70,7 @@ public partial class SettingsWindow : Window
         {
             if (!HotkeyBinding.TryParse(pair.Value, out _, out var error))
             {
-                MessageBox.Show(
+                System.Windows.MessageBox.Show(
                     this,
                     $"Hotkey for {pair.Key} is invalid: {error}",
                     "FrameIt",

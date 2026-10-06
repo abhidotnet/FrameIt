@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using FrameIt.Models;
 
@@ -34,7 +35,12 @@ public sealed class SettingsService
         try
         {
             var json = File.ReadAllText(SettingsFilePath);
-            var parsed = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? CreateDefaultSettings();
+            var parsed = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
+            if (parsed is null)
+            {
+                parsed = CreateDefaultSettings();
+            }
+
             Normalize(parsed);
             return parsed;
         }
