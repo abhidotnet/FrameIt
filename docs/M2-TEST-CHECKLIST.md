@@ -29,7 +29,10 @@ Run these on a real Windows x64 PC after `./build.ps1`. Use a capture that inclu
    - On a capture that was not auto-saved, press `Ctrl+S` and confirm it opens Save As instead of failing.
 
 5. **Crop, resize, rotate, flip**
-   - Crop by dragging a rectangle. Confirm the image shrinks to that region and `Ctrl+Z` restores it.
+   - With the photo smaller than the editor, drag a crop on the image and continue into the dark margin. The marquee stays on the photo. The bright area is what will remain; the rest is dimmed.
+   - Drag an edge or corner to resize, and drag inside the bright area to move it. The rectangle cannot leave the image.
+   - Press `Enter` or double-click the bright area. Confirm the image shrinks to that region and `Ctrl+Z` restores it.
+   - Repeat on a 150% DPI monitor if you have one. The kept pixels should match the bright area, not a shifted copy.
    - Resize to 50% with aspect lock on, then to an exact pixel size with aspect lock off. Confirm the dimensions in the status bar match.
    - Rotate left, rotate right, flip horizontal, and flip vertical. Confirm each one is a single undo step.
 

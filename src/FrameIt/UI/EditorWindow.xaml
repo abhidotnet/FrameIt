@@ -82,9 +82,28 @@
             </StackPanel>
         </Grid>
 
-        <ScrollViewer Background="#2B2B2B" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False">
-            <Grid x:Name="CanvasHost" Margin="12" Background="Transparent" SnapsToDevicePixels="True">
-                <Image x:Name="BaseImage" Stretch="None" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+        <ScrollViewer
+            Background="#2B2B2B"
+            HorizontalScrollBarVisibility="Auto"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalContentAlignment="Left"
+            VerticalContentAlignment="Top"
+            Focusable="False">
+            <Grid
+                x:Name="CanvasHost"
+                Margin="12"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="Transparent"
+                ClipToBounds="True"
+                SnapsToDevicePixels="True">
+                <Image
+                    x:Name="BaseImage"
+                    Stretch="Fill"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    SnapsToDevicePixels="True"
+                    RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 <Canvas x:Name="RedactionCanvas" IsHitTestVisible="False" />
                 <Canvas x:Name="ShapeCanvas" IsHitTestVisible="False" />
                 <Canvas x:Name="OverlayCanvas">

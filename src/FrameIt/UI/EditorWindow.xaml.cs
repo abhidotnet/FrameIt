@@ -45,6 +45,11 @@ public partial class EditorWindow : Window
     private Redaction? _selectedRedaction;
     private bool _dragging;
     private bool _moved;
+    private bool _cropLive;
+    private System.Drawing.Rectangle _cropRect;
+    private System.Drawing.Rectangle _cropOriginRect;
+    private PointD _cropAnchor;
+    private CropDragKind _cropDrag = CropDragKind.Create;
     private PointD _dragStart;
     private PointD _dragLast;
     private List<Annotation>? _annotationSnapshot;
@@ -86,6 +91,7 @@ public partial class EditorWindow : Window
         CanvasHost.PreviewMouseMove += CanvasHost_OnMouseMove;
         CanvasHost.PreviewMouseLeftButtonUp += CanvasHost_OnMouseUp;
         CanvasHost.LostMouseCapture += (_, _) => FinishDrag(null);
+        CanvasHost.SizeChanged += (_, _) => UpdateOverlayScale();
 
         _session.Changed += OnSessionChanged;
         Loaded += (_, _) =>
@@ -124,6 +130,10 @@ public partial class EditorWindow : Window
             {
                 CancelInteraction();
             }
+            else if (_cropLive)
+            {
+                ClearLiveCrop();
+            }
             else if (InlineTextBox.Visibility == Visibility.Visible)
             {
                 CancelInlineText();
@@ -150,6 +160,13 @@ public partial class EditorWindow : Window
                 e.Handled = true;
             }
 
+            return;
+        }
+
+        if (key == Key.Enter && _cropLive && mods == ModifierKeys.None)
+        {
+            ApplyLiveCrop();
+            e.Handled = true;
             return;
         }
 
@@ -189,7 +206,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
-        if (!e.Cancel && _session.IsDirty)
+        if (!e.Cancel && (_session.IsDirty || _cropLive))
         {
             var result = System.Windows.MessageBox.Show(
                 this,
@@ -204,6 +221,10 @@ public partial class EditorWindow : Window
             else if (result == MessageBoxResult.Yes && !Save())
             {
                 e.Cancel = true;
+            }
+            else if (result == MessageBoxResult.No)
+            {
+                ClearLiveCrop();
             }
         }
 
@@ -258,6 +279,11 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        if (tool != EditorTool.Crop)
+        {
+            ClearLiveCrop();
+        }
+
         _tool = tool;
         if (tool != EditorTool.Select)
         {
@@ -334,6 +360,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         var dialog = new ResizeWindow(_session.Image.Width, _session.Image.Height)
         {
             Owner = this
@@ -362,6 +389,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         var dialog = new AdjustWindow(ShowAdjustPreview)
         {
             Owner = this
@@ -475,6 +503,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         if (string.IsNullOrEmpty(_filePath))
         {
             return SaveAs();
@@ -487,6 +516,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         var settings = _getSettings();
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
@@ -577,6 +607,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         using var flattened = ImageEffects.Flatten(_session.Image, _session.Redactions, _session.Annotations);
         var source = BitmapInterop.ToBitmapSource(flattened);
         if (!BitmapInterop.TrySetClipboard(source))
@@ -611,6 +642,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         var width = _session.Image.Width;
         var height = _session.Image.Height;
         var rotated = ImageEffects.Rotate(_session.Image, clockwise);
@@ -629,6 +661,7 @@ public partial class EditorWindow : Window
     {
         CommitStyleChange();
         CommitInlineText();
+        ApplyLiveCrop();
         var width = _session.Image.Width;
         var height = _session.Image.Height;
         var flipped = ImageEffects.Flip(_session.Image, horizontal);
@@ -650,6 +683,7 @@ public partial class EditorWindow : Window
         _previewBitmap?.Dispose();
         _previewBitmap = preview;
         _displayedBitmap = null;
+        SyncImageSurface();
     }
 
     private void ClearPreview()
@@ -693,6 +727,38 @@ public partial class EditorWindow : Window
         if (_tool == EditorTool.Step)
         {
             PlaceStep(point);
+            e.Handled = true;
+            return;
+        }
+
+        if (_tool == EditorTool.Crop)
+        {
+            if (_cropLive && e.ClickCount >= 2 && IsInsideCrop(point))
+            {
+                ApplyLiveCrop();
+                e.Handled = true;
+                return;
+            }
+
+            if (_cropLive && TryHitCropDrag(point, out var drag))
+            {
+                _cropDrag = drag;
+                _cropAnchor = point;
+                _cropOriginRect = _cropRect;
+            }
+            else
+            {
+                _cropDrag = CropDragKind.Create;
+                _cropLive = false;
+                _dragStart = point;
+                PreviewCanvas.Children.Clear();
+            }
+
+            _dragging = true;
+            _moved = false;
+            _dragLast = point;
+            Mouse.Capture(CanvasHost);
+            UpdateCropCursor(point);
             e.Handled = true;
             return;
         }
@@ -742,6 +808,11 @@ public partial class EditorWindow : Window
     {
         if (!_dragging || e.LeftButton != MouseButtonState.Pressed)
         {
+            if (_tool == EditorTool.Crop)
+            {
+                UpdateCropCursor(ToImage(e));
+            }
+
             return;
         }
 
@@ -783,7 +854,13 @@ public partial class EditorWindow : Window
             return;
         }
 
-        if (_tool is EditorTool.Crop or EditorTool.Blur or EditorTool.Pixelate)
+        if (_tool == EditorTool.Crop)
+        {
+            UpdateLiveCrop(point);
+            return;
+        }
+
+        if (_tool is EditorTool.Blur or EditorTool.Pixelate)
         {
             ShowRubberBand(_dragStart, point);
             return;
@@ -840,7 +917,7 @@ public partial class EditorWindow : Window
 
                 break;
             case EditorTool.Crop:
-                ApplyCrop(_dragStart, _dragLast);
+                FinishCropDrag();
                 break;
             case EditorTool.Blur:
                 AddRedaction(_dragStart, _dragLast, pixelate: false);
@@ -890,6 +967,19 @@ public partial class EditorWindow : Window
         }
 
         PreviewCanvas.Children.Clear();
+        if (_tool == EditorTool.Crop)
+        {
+            if (_cropDrag == CropDragKind.Create)
+            {
+                ClearLiveCrop();
+            }
+            else if (_cropLive)
+            {
+                _cropRect = _cropOriginRect;
+                ShowCropRect(_cropRect, handles: true);
+            }
+        }
+
         if (moved)
         {
             _session.Restore(annotationSnapshot, redactionSnapshot);
@@ -901,21 +991,57 @@ public partial class EditorWindow : Window
         UpdateStatus();
     }
 
-    private void ApplyCrop(PointD start, PointD end)
+    private void UpdateLiveCrop(PointD point)
     {
-        var left = ClampPixel(Math.Min(start.X, end.X), _session.Image.Width);
-        var top = ClampPixel(Math.Min(start.Y, end.Y), _session.Image.Height);
-        var right = ClampPixel(Math.Max(start.X, end.X), _session.Image.Width);
-        var bottom = ClampPixel(Math.Max(start.Y, end.Y), _session.Image.Height);
-        if (right - left < 2 || bottom - top < 2)
+        if (_cropDrag == CropDragKind.Create)
+        {
+            ShowCropHighlight(_dragStart, point);
+            return;
+        }
+
+        _cropRect = _cropDrag == CropDragKind.Move
+            ? MoveCropRect(_cropOriginRect, point.X - _cropAnchor.X, point.Y - _cropAnchor.Y)
+            : ResizeCropRect(_cropOriginRect, _cropDrag, point);
+        _cropLive = true;
+        ShowCropRect(_cropRect, handles: true);
+    }
+
+    private void FinishCropDrag()
+    {
+        if (_cropDrag == CropDragKind.Create)
+        {
+            if (TryGetCropRect(_dragStart, _dragLast, minimumSize: 2, out var created))
+            {
+                _cropLive = true;
+                _cropRect = created;
+                ShowCropRect(_cropRect, handles: true);
+            }
+            else
+            {
+                ClearLiveCrop();
+            }
+        }
+        else if (_cropLive)
+        {
+            ShowCropRect(_cropRect, handles: true);
+        }
+
+        UpdateStatus();
+        UpdateCropCursor(_dragLast);
+    }
+
+    private void ApplyLiveCrop()
+    {
+        if (!_cropLive || _cropRect.Width < 2 || _cropRect.Height < 2)
         {
             return;
         }
 
-        var rect = new System.Drawing.Rectangle(left, top, right - left, bottom - top);
+        var rect = _cropRect;
+        ClearLiveCrop();
         var cropped = ImageEffects.Crop(_session.Image, rect);
-        var annotations = AnnotationTransforms.Crop(_session.Annotations, left, top, rect.Width, rect.Height);
-        var redactions = AnnotationTransforms.CropRedactions(_session.Redactions, left, top, rect.Width, rect.Height);
+        var annotations = AnnotationTransforms.Crop(_session.Annotations, rect.X, rect.Y, rect.Width, rect.Height);
+        var redactions = AnnotationTransforms.CropRedactions(_session.Redactions, rect.X, rect.Y, rect.Width, rect.Height);
         _selectedAnnotation = null;
         _selectedRedaction = null;
         _session.Apply(cropped, annotations, redactions);
@@ -1000,8 +1126,9 @@ public partial class EditorWindow : Window
         InlineTextBox.Text = text;
         InlineTextBox.FontSize = fontSize;
         InlineTextBox.Foreground = BrushFrom(color);
-        Canvas.SetLeft(InlineTextBox, x);
-        Canvas.SetTop(InlineTextBox, y);
+        var dip = PixelToDip(x, y);
+        Canvas.SetLeft(InlineTextBox, dip.X);
+        Canvas.SetTop(InlineTextBox, dip.Y);
         InlineTextBox.Visibility = Visibility.Visible;
         InlineTextBox.Focus();
         InlineTextBox.SelectAll();
@@ -1204,6 +1331,11 @@ public partial class EditorWindow : Window
             _selectedRedaction = null;
         }
 
+        if (_cropLive && !ReferenceEquals(_displayedBitmap, _session.Image))
+        {
+            ClearLiveCrop();
+        }
+
         if (_previewBitmap is null && !ReferenceEquals(_displayedBitmap, _session.Image))
         {
             DisplaySessionImage();
@@ -1219,6 +1351,34 @@ public partial class EditorWindow : Window
         BaseImage.Source = BitmapInterop.ToBitmapSource(_session.Image);
         _displayedBitmap = _session.Image;
         ClearPreview();
+        SyncImageSurface();
+    }
+
+    private void SyncImageSurface()
+    {
+        if (BaseImage.Source is not BitmapSource source || source.PixelWidth < 1 || source.PixelHeight < 1)
+        {
+            return;
+        }
+
+        // BitmapSource.Width/Height are DIPs (pixels * 96 / image DPI), so the host matches
+        // the displayed image and does not stretch into the letterbox around it.
+        CanvasHost.Width = source.Width;
+        CanvasHost.Height = source.Height;
+        UpdateOverlayScale();
+    }
+
+    private void UpdateOverlayScale()
+    {
+        if (!TryGetDisplaySize(out var displayWidth, out var displayHeight))
+        {
+            return;
+        }
+
+        var scale = new ScaleTransform(displayWidth / _session.Image.Width, displayHeight / _session.Image.Height);
+        RedactionCanvas.RenderTransform = scale;
+        ShapeCanvas.RenderTransform = scale;
+        PreviewCanvas.RenderTransform = scale;
     }
 
     private void RebuildVisuals()
@@ -1380,6 +1540,308 @@ public partial class EditorWindow : Window
         {
             PreviewCanvas.Children.Add(preview);
         }
+    }
+
+    private void ShowCropHighlight(PointD start, PointD end)
+    {
+        if (!TryGetCropRect(start, end, minimumSize: 1, out var rect))
+        {
+            PreviewCanvas.Children.Clear();
+            return;
+        }
+
+        ShowCropRect(rect, handles: false);
+    }
+
+    private void ShowCropRect(System.Drawing.Rectangle rect, bool handles)
+    {
+        PreviewCanvas.Children.Clear();
+        var pixelWidth = _session.Image.Width;
+        var pixelHeight = _session.Image.Height;
+        var shade = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 0, 0, 0));
+        shade.Freeze();
+
+        void Shade(double x, double y, double width, double height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+            PreviewCanvas.Children.Add(Place(new System.Windows.Shapes.Rectangle
+            {
+                Width = width,
+                Height = height,
+                Fill = shade,
+                IsHitTestVisible = false
+            }, x, y));
+        }
+
+        // Dim the part that will be removed. Overlay coordinates are image pixels and are
+        // scaled onto the displayed image, so the bright area cannot sit in the letterbox.
+        Shade(0, 0, pixelWidth, rect.Y);
+        Shade(0, rect.Y, rect.X, rect.Height);
+        Shade(rect.Right, rect.Y, pixelWidth - rect.Right, rect.Height);
+        Shade(0, rect.Bottom, pixelWidth, pixelHeight - rect.Bottom);
+
+        PreviewCanvas.Children.Add(Place(new System.Windows.Shapes.Rectangle
+        {
+            Width = Math.Max(1, rect.Width),
+            Height = Math.Max(1, rect.Height),
+            Stroke = System.Windows.Media.Brushes.White,
+            StrokeThickness = 2,
+            Fill = System.Windows.Media.Brushes.Transparent,
+            IsHitTestVisible = false
+        }, rect.X, rect.Y));
+
+        if (!handles)
+        {
+            return;
+        }
+
+        var handle = HandleSlopPixels();
+        void Knob(double x, double y)
+        {
+            PreviewCanvas.Children.Add(Place(new System.Windows.Shapes.Rectangle
+            {
+                Width = handle,
+                Height = handle,
+                Fill = System.Windows.Media.Brushes.White,
+                Stroke = System.Windows.Media.Brushes.Black,
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            }, x - (handle / 2), y - (handle / 2)));
+        }
+
+        Knob(rect.Left, rect.Top);
+        Knob(rect.Right, rect.Top);
+        Knob(rect.Left, rect.Bottom);
+        Knob(rect.Right, rect.Bottom);
+    }
+
+    private void ClearLiveCrop()
+    {
+        _cropLive = false;
+        _cropDrag = CropDragKind.Create;
+        PreviewCanvas.Children.Clear();
+        if (_tool == EditorTool.Crop)
+        {
+            CanvasHost.Cursor = System.Windows.Input.Cursors.Cross;
+        }
+    }
+
+    private bool IsInsideCrop(PointD point)
+    {
+        return _cropLive &&
+               point.X >= _cropRect.Left &&
+               point.X <= _cropRect.Right &&
+               point.Y >= _cropRect.Top &&
+               point.Y <= _cropRect.Bottom;
+    }
+
+    private bool TryHitCropDrag(PointD point, out CropDragKind drag)
+    {
+        drag = CropDragKind.Create;
+        if (!_cropLive)
+        {
+            return false;
+        }
+
+        var slop = HandleSlopPixels();
+        var rect = _cropRect;
+        var nearLeft = Math.Abs(point.X - rect.Left) <= slop;
+        var nearRight = Math.Abs(point.X - rect.Right) <= slop;
+        var nearTop = Math.Abs(point.Y - rect.Top) <= slop;
+        var nearBottom = Math.Abs(point.Y - rect.Bottom) <= slop;
+        var insideX = point.X >= rect.Left - slop && point.X <= rect.Right + slop;
+        var insideY = point.Y >= rect.Top - slop && point.Y <= rect.Bottom + slop;
+        if (nearTop && nearLeft && insideX && insideY)
+        {
+            drag = CropDragKind.NorthWest;
+        }
+        else if (nearTop && nearRight && insideX && insideY)
+        {
+            drag = CropDragKind.NorthEast;
+        }
+        else if (nearBottom && nearLeft && insideX && insideY)
+        {
+            drag = CropDragKind.SouthWest;
+        }
+        else if (nearBottom && nearRight && insideX && insideY)
+        {
+            drag = CropDragKind.SouthEast;
+        }
+        else if (nearTop && insideX)
+        {
+            drag = CropDragKind.North;
+        }
+        else if (nearBottom && insideX)
+        {
+            drag = CropDragKind.South;
+        }
+        else if (nearLeft && insideY)
+        {
+            drag = CropDragKind.West;
+        }
+        else if (nearRight && insideY)
+        {
+            drag = CropDragKind.East;
+        }
+        else if (IsInsideCrop(point))
+        {
+            drag = CropDragKind.Move;
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private System.Drawing.Rectangle MoveCropRect(System.Drawing.Rectangle origin, double dx, double dy)
+    {
+        var width = origin.Width;
+        var height = origin.Height;
+        var x = (int)Math.Round(origin.X + dx);
+        var y = (int)Math.Round(origin.Y + dy);
+        x = Math.Clamp(x, 0, Math.Max(0, _session.Image.Width - width));
+        y = Math.Clamp(y, 0, Math.Max(0, _session.Image.Height - height));
+        return new System.Drawing.Rectangle(x, y, width, height);
+    }
+
+    private System.Drawing.Rectangle ResizeCropRect(System.Drawing.Rectangle origin, CropDragKind drag, PointD point)
+    {
+        var left = origin.Left;
+        var top = origin.Top;
+        var right = origin.Right;
+        var bottom = origin.Bottom;
+        var x = ClampPixel(point.X, _session.Image.Width);
+        var y = ClampPixel(point.Y, _session.Image.Height);
+        switch (drag)
+        {
+            case CropDragKind.North:
+                top = y;
+                break;
+            case CropDragKind.South:
+                bottom = y;
+                break;
+            case CropDragKind.West:
+                left = x;
+                break;
+            case CropDragKind.East:
+                right = x;
+                break;
+            case CropDragKind.NorthWest:
+                top = y;
+                left = x;
+                break;
+            case CropDragKind.NorthEast:
+                top = y;
+                right = x;
+                break;
+            case CropDragKind.SouthWest:
+                bottom = y;
+                left = x;
+                break;
+            case CropDragKind.SouthEast:
+                bottom = y;
+                right = x;
+                break;
+        }
+
+        return NormalizeCrop(left, top, right, bottom);
+    }
+
+    private System.Drawing.Rectangle NormalizeCrop(int left, int top, int right, int bottom)
+    {
+        var pixelWidth = _session.Image.Width;
+        var pixelHeight = _session.Image.Height;
+        left = Math.Clamp(left, 0, pixelWidth);
+        right = Math.Clamp(right, 0, pixelWidth);
+        top = Math.Clamp(top, 0, pixelHeight);
+        bottom = Math.Clamp(bottom, 0, pixelHeight);
+        if (right < left)
+        {
+            (left, right) = (right, left);
+        }
+
+        if (bottom < top)
+        {
+            (top, bottom) = (bottom, top);
+        }
+
+        if (right == left)
+        {
+            if (right < pixelWidth)
+            {
+                right++;
+            }
+            else if (left > 0)
+            {
+                left--;
+            }
+        }
+
+        if (bottom == top)
+        {
+            if (bottom < pixelHeight)
+            {
+                bottom++;
+            }
+            else if (top > 0)
+            {
+                top--;
+            }
+        }
+
+        return System.Drawing.Rectangle.FromLTRB(left, top, right, bottom);
+    }
+
+    private double HandleSlopPixels()
+    {
+        if (!TryGetDisplaySize(out var displayWidth, out _) || displayWidth <= 0 || _session.Image.Width <= 0)
+        {
+            return 8;
+        }
+
+        return Math.Max(4, 8 * _session.Image.Width / displayWidth);
+    }
+
+    private void UpdateCropCursor(PointD point)
+    {
+        if (_tool != EditorTool.Crop)
+        {
+            return;
+        }
+
+        if (!_cropLive || !TryHitCropDrag(point, out var drag) || drag == CropDragKind.Create)
+        {
+            CanvasHost.Cursor = System.Windows.Input.Cursors.Cross;
+            return;
+        }
+
+        CanvasHost.Cursor = drag switch
+        {
+            CropDragKind.North or CropDragKind.South => System.Windows.Input.Cursors.SizeNS,
+            CropDragKind.East or CropDragKind.West => System.Windows.Input.Cursors.SizeWE,
+            CropDragKind.NorthEast or CropDragKind.SouthWest => System.Windows.Input.Cursors.SizeNESW,
+            CropDragKind.NorthWest or CropDragKind.SouthEast => System.Windows.Input.Cursors.SizeNWSE,
+            CropDragKind.Move => System.Windows.Input.Cursors.SizeAll,
+            _ => System.Windows.Input.Cursors.Cross
+        };
+    }
+
+    private bool TryGetCropRect(PointD start, PointD end, int minimumSize, out System.Drawing.Rectangle rect)
+    {
+        var pixelWidth = _session.Image.Width;
+        var pixelHeight = _session.Image.Height;
+        var left = ClampPixel(Math.Min(start.X, end.X), pixelWidth);
+        var top = ClampPixel(Math.Min(start.Y, end.Y), pixelHeight);
+        var right = ClampPixel(Math.Max(start.X, end.X), pixelWidth);
+        var bottom = ClampPixel(Math.Max(start.Y, end.Y), pixelHeight);
+        rect = System.Drawing.Rectangle.FromLTRB(left, top, right, bottom);
+        return rect.Width >= minimumSize && rect.Height >= minimumSize;
     }
 
     private void ShowRubberBand(PointD start, PointD end)
@@ -1649,19 +2111,54 @@ public partial class EditorWindow : Window
 
     private PointD ToImage(System.Windows.Input.MouseEventArgs e)
     {
-        var point = e.GetPosition(CanvasHost);
-        var width = CanvasHost.ActualWidth;
-        var height = CanvasHost.ActualHeight;
-        if (width <= 0 || height <= 0)
+        // Pointer position is in device-independent pixels on the image element.
+        // That already includes PerMonitorV2 scaling and any letterbox outside this element.
+        // Convert with the image's laid-out size so a point on the displayed photo maps to
+        // the same fraction of the bitmap, including when image DPI makes DIPs differ from pixels.
+        if (!TryGetDisplaySize(out var displayWidth, out var displayHeight))
         {
             return new PointD(0, 0);
         }
 
-        var x = point.X * _session.Image.Width / width;
-        var y = point.Y * _session.Image.Height / height;
+        var dip = e.GetPosition(BaseImage);
+        var x = Math.Clamp(dip.X, 0, displayWidth) / displayWidth * _session.Image.Width;
+        var y = Math.Clamp(dip.Y, 0, displayHeight) / displayHeight * _session.Image.Height;
         return new PointD(
             Math.Clamp(x, 0, _session.Image.Width),
             Math.Clamp(y, 0, _session.Image.Height));
+    }
+
+    private PointD PixelToDip(double x, double y)
+    {
+        if (!TryGetDisplaySize(out var displayWidth, out var displayHeight) ||
+            _session.Image.Width <= 0 ||
+            _session.Image.Height <= 0)
+        {
+            return new PointD(x, y);
+        }
+
+        return new PointD(
+            x / _session.Image.Width * displayWidth,
+            y / _session.Image.Height * displayHeight);
+    }
+
+    private bool TryGetDisplaySize(out double displayWidth, out double displayHeight)
+    {
+        displayWidth = BaseImage.ActualWidth;
+        displayHeight = BaseImage.ActualHeight;
+        if (displayWidth > 0 && displayHeight > 0)
+        {
+            return true;
+        }
+
+        if (BaseImage.Source is BitmapSource source && source.Width > 0 && source.Height > 0)
+        {
+            displayWidth = source.Width;
+            displayHeight = source.Height;
+            return true;
+        }
+
+        return false;
     }
 
     private void UpdateStatus()
@@ -1671,7 +2168,9 @@ public partial class EditorWindow : Window
         var hint = _tool switch
         {
             EditorTool.Select => "Drag to move. Delete removes the selection.",
-            EditorTool.Crop => "Drag a rectangle to crop.",
+            EditorTool.Crop => _cropLive
+                ? "Bright area is kept. Drag an edge to resize. Enter or double-click applies. Esc cancels."
+                : "Drag on the image. The bright area is kept.",
             EditorTool.Text => "Click to place text.",
             EditorTool.Step => "Click to place the next numbered step.",
             EditorTool.Blur => "Drag a rectangle to blur.",
@@ -1711,6 +2210,20 @@ public partial class EditorWindow : Window
         var extension = System.IO.Path.GetExtension(path);
         return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
                extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private enum CropDragKind
+    {
+        Create,
+        Move,
+        North,
+        South,
+        East,
+        West,
+        NorthEast,
+        NorthWest,
+        SouthEast,
+        SouthWest
     }
 
     private sealed class RedactionPatch
