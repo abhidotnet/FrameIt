@@ -1,0 +1,145 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using FrameIt.Models;
+using FrameIt.UI;
+
+namespace FrameIt.Services;
+
+public sealed class CaptureCoordinator
+{
+    private readonly CaptureService _captureService;
+    private readonly TimingLogger _timingLogger;
+    private readonly WindowEdgeSnapService _edgeSnapService;
+    private readonly Func<AppSettings> _getSettings;
+    private readonly Action _persistSettings;
+    private readonly Action<string?> _setBadge;
+    private EditorWindow? _editor;
+
+    public CaptureCoordinator(
+        CaptureService captureService,
+        TimingLogger timingLogger,
+        WindowEdgeSnapService edgeSnapService,
+        Func<AppSettings> getSettings,
+        Action persistSettings,
+        Action<string?> setBadge)
+    {
+        _captureService = captureService;
+        _timingLogger = timingLogger;
+        _edgeSnapService = edgeSnapService;
+        _getSettings = getSettings;
+        _persistSettings = persistSettings;
+        _setBadge = setBadge;
+    }
+
+    public async Task CaptureAsync(CaptureMode mode, AppSettings settings)
+    {
+        var totalTimer = Stopwatch.StartNew();
+        if (!TryCloseEditor())
+        {
+            return;
+        }
+
+        // Close the editor first so its save prompt is not the thing on screen during the wait.
+        // The countdown stays non-activating, then closes before the capture reads the foreground window.
+        var delayWatch = Stopwatch.StartNew();
+        if (!await CaptureDelay.WaitAsync(settings.CaptureDelaySeconds, _setBadge))
+        {
+            return;
+        }
+
+        delayWatch.Stop();
+        var delayElapsed = delayWatch.Elapsed;
+
+        Bitmap? bitmap;
+        if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
+        {
+            var selectionMode = mode == CaptureMode.FixedRegion
+                ? FrameIt.UI.SelectionMode.FixedSize
+                : FrameIt.UI.SelectionMode.Freeform;
+            bitmap = RegionSelectionWindow.CaptureRegion(_edgeSnapService, selectionMode, settings);
+        }
+        else if (mode == CaptureMode.FullScreen)
+        {
+            bitmap = _captureService.CaptureVirtualScreen();
+        }
+        else
+        {
+            var bounds = await ResolveBoundsAsync(mode, settings);
+            bitmap = bounds.HasValue ? _captureService.CaptureRectangle(bounds.Value) : null;
+        }
+
+        if (bitmap is null)
+        {
+            return;
+        }
+
+        using (bitmap)
+        {
+            var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
+
+            string? filePath = null;
+            if (settings.AutoSaveCaptures)
+            {
+                Directory.CreateDirectory(settings.CaptureFolder);
+                filePath = Path.Combine(
+                    settings.CaptureFolder,
+                    $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+                bitmap.Save(filePath, ImageFormat.Png);
+            }
+
+            var source = BitmapInterop.ToBitmapSource(bitmap);
+            BitmapInterop.TrySetClipboard(source);
+
+            var editor = new EditorWindow(bitmap, filePath, _getSettings, _persistSettings);
+            editor.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_editor, editor))
+                {
+                    _editor = null;
+                }
+            };
+            _editor = editor;
+            editor.Show();
+            editor.Activate();
+
+            if (settings.EnableTimingLogs)
+            {
+                var provider = _captureService.IsWindowsGraphicsCaptureSupported()
+                    ? "gdi-fallback-wgc-available"
+                    : "gdi-fallback";
+                _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
+            }
+        }
+    }
+
+    private async Task<Rectangle?> ResolveBoundsAsync(CaptureMode mode, AppSettings settings)
+    {
+        await Task.Yield();
+
+        return mode switch
+        {
+            CaptureMode.ActiveWindow => _captureService.GetActiveWindowBounds(),
+            _ => null
+        };
+    }
+
+    private static TimeSpan SubtractDelay(TimeSpan elapsed, TimeSpan delay)
+    {
+        var adjusted = elapsed - delay;
+        return adjusted < TimeSpan.Zero ? TimeSpan.Zero : adjusted;
+    }
+
+    private bool TryCloseEditor()
+    {
+        if (_editor is null)
+        {
+            return true;
+        }
+
+        var editor = _editor;
+        editor.Close();
+        return !editor.IsVisible;
+    }
+}
