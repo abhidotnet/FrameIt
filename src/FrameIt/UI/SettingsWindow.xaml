@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="FrameIt Settings"
     Width="620"
-    Height="520"
+    SizeToContent="Height"
     WindowStartupLocation="CenterScreen"
     ResizeMode="NoResize">
     <Grid Margin="16">
@@ -14,7 +14,10 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -32,9 +35,15 @@
             <TextBox x:Name="FixedHeightTextBox" Width="100" />
         </StackPanel>
 
-        <CheckBox Grid.Row="4" x:Name="TimingLogsCheckBox" Content="Enable local timing logs (no image data)" Margin="0,0,0,12" />
+        <CheckBox Grid.Row="4" x:Name="TimingLogsCheckBox" Content="Enable local timing logs (no image data)" Margin="0,0,0,8" />
+        <CheckBox Grid.Row="5" x:Name="AutoSaveCheckBox" Content="Auto-save captures as PNG (capture-YYYYMMDD-HHmmss.png)" Margin="0,0,0,8" />
 
-        <GroupBox Grid.Row="5" Header="Global hotkeys">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock VerticalAlignment="Center" Text="JPEG quality (1–100)" Margin="0,0,8,0" />
+            <TextBox x:Name="JpegQualityTextBox" Width="80" />
+        </StackPanel>
+
+        <GroupBox Grid.Row="7" Header="Global hotkeys">
             <Grid Margin="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="200" />
@@ -57,7 +66,7 @@
             </Grid>
         </GroupBox>
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Width="96" Margin="0,0,8,0" Click="CancelButton_OnClick">Cancel</Button>
             <Button Width="120" Click="SaveButton_OnClick">Save settings</Button>
         </StackPanel>

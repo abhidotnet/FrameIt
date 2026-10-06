@@ -27,4 +27,27 @@ public static class BitmapInterop
             DeleteObject(hBitmap);
         }
     }
+
+    public static bool TrySetClipboard(BitmapSource source)
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            try
+            {
+                System.Windows.Clipboard.SetImage(source);
+                return true;
+            }
+            catch (Exception)
+            {
+                if (attempt == 3)
+                {
+                    return false;
+                }
+
+                Thread.Sleep(30 * (attempt + 1));
+            }
+        }
+
+        return false;
+    }
 }

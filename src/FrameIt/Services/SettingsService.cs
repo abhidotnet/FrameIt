@@ -78,6 +78,11 @@ public sealed class SettingsService
 
         settings.FixedRegionWidth = Math.Max(32, settings.FixedRegionWidth);
         settings.FixedRegionHeight = Math.Max(32, settings.FixedRegionHeight);
+        settings.LastSaveFolder ??= string.Empty;
+        if (settings.JpegQuality is < 1 or > 100)
+        {
+            settings.JpegQuality = 90;
+        }
 
         settings.Hotkeys ??= new Dictionary<CaptureMode, string>();
         EnsureDefaultHotkey(settings.Hotkeys, CaptureMode.Region, "PrintScreen");

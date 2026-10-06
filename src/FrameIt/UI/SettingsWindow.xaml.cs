@@ -23,6 +23,8 @@ public partial class SettingsWindow : Window
         FixedWidthTextBox.Text = _workingCopy.FixedRegionWidth.ToString();
         FixedHeightTextBox.Text = _workingCopy.FixedRegionHeight.ToString();
         TimingLogsCheckBox.IsChecked = _workingCopy.EnableTimingLogs;
+        AutoSaveCheckBox.IsChecked = _workingCopy.AutoSaveCaptures;
+        JpegQualityTextBox.Text = _workingCopy.JpegQuality.ToString();
 
         RegionHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.Region];
         FullScreenHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.FullScreen];
@@ -58,6 +60,12 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (!int.TryParse(JpegQualityTextBox.Text, out var jpegQuality) || jpegQuality is < 1 or > 100)
+        {
+            System.Windows.MessageBox.Show(this, "JPEG quality must be a number from 1 to 100.", "FrameIt", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var hotkeys = new Dictionary<CaptureMode, string>
         {
             [CaptureMode.Region] = RegionHotkeyTextBox.Text.Trim(),
@@ -88,6 +96,9 @@ public partial class SettingsWindow : Window
             FixedRegionWidth = width,
             FixedRegionHeight = height,
             EnableTimingLogs = TimingLogsCheckBox.IsChecked == true,
+            AutoSaveCaptures = AutoSaveCheckBox.IsChecked == true,
+            JpegQuality = jpegQuality,
+            LastSaveFolder = _workingCopy.LastSaveFolder,
             Hotkeys = hotkeys
         };
 
@@ -107,6 +118,9 @@ public partial class SettingsWindow : Window
             FixedRegionWidth = source.FixedRegionWidth,
             FixedRegionHeight = source.FixedRegionHeight,
             EnableTimingLogs = source.EnableTimingLogs,
+            AutoSaveCaptures = source.AutoSaveCaptures,
+            JpegQuality = source.JpegQuality,
+            LastSaveFolder = source.LastSaveFolder,
             Hotkeys = source.Hotkeys.ToDictionary(pair => pair.Key, pair => pair.Value)
         };
     }

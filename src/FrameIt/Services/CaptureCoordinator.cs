@@ -9,27 +9,35 @@ namespace FrameIt.Services;
 
 public sealed class CaptureCoordinator
 {
-    private readonly SettingsService _settingsService;
     private readonly CaptureService _captureService;
     private readonly TimingLogger _timingLogger;
     private readonly WindowEdgeSnapService _edgeSnapService;
-    private ViewerWindow? _viewer;
+    private readonly Func<AppSettings> _getSettings;
+    private readonly Action _persistSettings;
+    private EditorWindow? _editor;
 
     public CaptureCoordinator(
-        SettingsService settingsService,
         CaptureService captureService,
         TimingLogger timingLogger,
-        WindowEdgeSnapService edgeSnapService)
+        WindowEdgeSnapService edgeSnapService,
+        Func<AppSettings> getSettings,
+        Action persistSettings)
     {
-        _settingsService = settingsService;
         _captureService = captureService;
         _timingLogger = timingLogger;
         _edgeSnapService = edgeSnapService;
+        _getSettings = getSettings;
+        _persistSettings = persistSettings;
     }
 
     public async Task CaptureAsync(CaptureMode mode, AppSettings settings)
     {
         var totalTimer = Stopwatch.StartNew();
+        if (!TryCloseEditor())
+        {
+            return;
+        }
+
         var bounds = await ResolveBoundsAsync(mode, settings);
         if (!bounds.HasValue)
         {
@@ -39,19 +47,30 @@ public sealed class CaptureCoordinator
         using var bitmap = _captureService.CaptureRectangle(bounds.Value);
         var captureElapsed = totalTimer.Elapsed;
 
-        Directory.CreateDirectory(settings.CaptureFolder);
-        var filePath = Path.Combine(
-            settings.CaptureFolder,
-            $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-        bitmap.Save(filePath, ImageFormat.Png);
+        string? filePath = null;
+        if (settings.AutoSaveCaptures)
+        {
+            Directory.CreateDirectory(settings.CaptureFolder);
+            filePath = Path.Combine(
+                settings.CaptureFolder,
+                $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
+            bitmap.Save(filePath, ImageFormat.Png);
+        }
 
         var source = BitmapInterop.ToBitmapSource(bitmap);
-        SetClipboardImage(source);
+        BitmapInterop.TrySetClipboard(source);
 
-        _viewer?.Close();
-        _viewer = new ViewerWindow(filePath);
-        _viewer.Show();
-        _viewer.Activate();
+        var editor = new EditorWindow(bitmap, filePath, _getSettings, _persistSettings);
+        editor.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_editor, editor))
+            {
+                _editor = null;
+            }
+        };
+        _editor = editor;
+        editor.Show();
+        editor.Activate();
 
         if (settings.EnableTimingLogs)
         {
@@ -76,19 +95,15 @@ public sealed class CaptureCoordinator
         };
     }
 
-    private static void SetClipboardImage(System.Windows.Media.Imaging.BitmapSource source)
+    private bool TryCloseEditor()
     {
-        for (var attempt = 0; attempt < 4; attempt++)
+        if (_editor is null)
         {
-            try
-            {
-                System.Windows.Clipboard.SetImage(source);
-                return;
-            }
-            catch
-            {
-                Thread.Sleep(30 * (attempt + 1));
-            }
+            return true;
         }
+
+        var editor = _editor;
+        editor.Close();
+        return !editor.IsVisible;
     }
 }

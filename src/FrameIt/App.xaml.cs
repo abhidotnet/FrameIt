@@ -39,7 +39,12 @@ public partial class App : System.Windows.Application
 
         var captureService = new CaptureService();
         var edgeSnapService = new WindowEdgeSnapService();
-        _captureCoordinator = new CaptureCoordinator(_settingsService, captureService, _timingLogger, edgeSnapService);
+        _captureCoordinator = new CaptureCoordinator(
+            captureService,
+            _timingLogger,
+            edgeSnapService,
+            () => _settings!,
+            () => _settingsService.Save(_settings!));
 
         _hotkeyService = new GlobalHotkeyService();
         _hotkeyHandler = mode => _ = BeginCaptureAsync(mode);

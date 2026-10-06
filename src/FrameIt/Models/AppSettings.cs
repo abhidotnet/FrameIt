@@ -10,6 +10,12 @@ public sealed class AppSettings
 
     public bool EnableTimingLogs { get; set; }
 
+    public bool AutoSaveCaptures { get; set; } = true;
+
+    public string LastSaveFolder { get; set; } = string.Empty;
+
+    public int JpegQuality { get; set; } = 90;
+
     public Dictionary<CaptureMode, string> Hotkeys { get; set; } = new()
     {
         [CaptureMode.Region] = "PrintScreen",
