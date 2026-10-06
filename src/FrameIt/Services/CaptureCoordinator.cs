@@ -14,6 +14,7 @@ public sealed class CaptureCoordinator
     private readonly WindowEdgeSnapService _edgeSnapService;
     private readonly Func<AppSettings> _getSettings;
     private readonly Action _persistSettings;
+    private readonly Action<string?> _setBadge;
     private EditorWindow? _editor;
 
     public CaptureCoordinator(
@@ -21,13 +22,15 @@ public sealed class CaptureCoordinator
         TimingLogger timingLogger,
         WindowEdgeSnapService edgeSnapService,
         Func<AppSettings> getSettings,
-        Action persistSettings)
+        Action persistSettings,
+        Action<string?> setBadge)
     {
         _captureService = captureService;
         _timingLogger = timingLogger;
         _edgeSnapService = edgeSnapService;
         _getSettings = getSettings;
         _persistSettings = persistSettings;
+        _setBadge = setBadge;
     }
 
     public async Task CaptureAsync(CaptureMode mode, AppSettings settings)
@@ -38,6 +41,17 @@ public sealed class CaptureCoordinator
             return;
         }
 
+        // Close the editor first so its save prompt is not the thing on screen during the wait.
+        // The countdown stays non-activating, then closes before the capture reads the foreground window.
+        var delayWatch = Stopwatch.StartNew();
+        if (!await CaptureDelay.WaitAsync(settings.CaptureDelaySeconds, _setBadge))
+        {
+            return;
+        }
+
+        delayWatch.Stop();
+        var delayElapsed = delayWatch.Elapsed;
+
         var bounds = await ResolveBoundsAsync(mode, settings);
         if (!bounds.HasValue)
         {
@@ -45,7 +59,7 @@ public sealed class CaptureCoordinator
         }
 
         using var bitmap = _captureService.CaptureRectangle(bounds.Value);
-        var captureElapsed = totalTimer.Elapsed;
+        var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
 
         string? filePath = null;
         if (settings.AutoSaveCaptures)
@@ -77,7 +91,7 @@ public sealed class CaptureCoordinator
             var provider = _captureService.IsWindowsGraphicsCaptureSupported()
                 ? "gdi-fallback-wgc-available"
                 : "gdi-fallback";
-            _timingLogger.LogCapture(mode.ToString(), captureElapsed, totalTimer.Elapsed, provider);
+            _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
         }
     }
 
@@ -93,6 +107,12 @@ public sealed class CaptureCoordinator
             CaptureMode.FullScreen => _captureService.GetMonitorUnderCursorBounds(),
             _ => null
         };
+    }
+
+    private static TimeSpan SubtractDelay(TimeSpan elapsed, TimeSpan delay)
+    {
+        var adjusted = elapsed - delay;
+        return adjusted < TimeSpan.Zero ? TimeSpan.Zero : adjusted;
     }
 
     private bool TryCloseEditor()

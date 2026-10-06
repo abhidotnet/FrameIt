@@ -67,6 +67,14 @@
                 <Button Content="Copy" ToolTip="Copy the flattened image (Ctrl+C)" Click="Copy_OnClick" />
                 <Button Content="Save" ToolTip="Save (Ctrl+S)" Click="Save_OnClick" />
                 <Button Content="Save As" ToolTip="Save As (Ctrl+Shift+S)" Click="SaveAs_OnClick" />
+                <Border Width="1" Height="22" Background="#CCCCCC" Margin="6,2,8,6" />
+                <Menu Background="Transparent" VerticalAlignment="Center" Margin="0,0,4,4">
+                    <MenuItem Header="Share" Padding="8,3" ToolTip="Send the flattened image">
+                        <MenuItem Header="Email" ToolTip="Email the flattened image through the SMTP server in Settings" Click="ShareEmail_OnClick" />
+                        <MenuItem Header="Upload (FTP)" ToolTip="Upload the flattened image to the FTP server in Settings" Click="ShareFtp_OnClick" />
+                        <MenuItem Header="Upload (SFTP)" ToolTip="SFTP needs an SSH library and is not available in this build" Click="ShareSftp_OnClick" />
+                    </MenuItem>
+                </Menu>
             </WrapPanel>
         </Border>
 

@@ -109,4 +109,18 @@ internal static class NativeMethods
         int nXSrc,
         int nYSrc,
         int dwRop);
+
+    internal const int GwlExStyle = -20;
+    internal const long WsExToolWindow = 0x00000080;
+    internal const long WsExNoActivate = 0x08000000;
+    internal const int MdtEffectiveDpi = 0;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    internal static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    internal static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("shcore.dll")]
+    internal static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 }

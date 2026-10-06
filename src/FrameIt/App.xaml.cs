@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private bool _ownsSingleInstanceMutex;
     private Action<CaptureMode>? _hotkeyHandler;
     private Forms.NotifyIcon? _notifyIcon;
+    private Forms.ToolStripMenuItem? _delayMenu;
     private SettingsService? _settingsService;
     private TimingLogger? _timingLogger;
     private GlobalHotkeyService? _hotkeyService;
@@ -44,7 +45,8 @@ public partial class App : System.Windows.Application
             _timingLogger,
             edgeSnapService,
             () => _settings!,
-            () => _settingsService.Save(_settings!));
+            () => _settingsService.Save(_settings!),
+            SetTrayBadge);
 
         _hotkeyService = new GlobalHotkeyService();
         _hotkeyHandler = mode => _ = BeginCaptureAsync(mode);
@@ -110,6 +112,18 @@ public partial class App : System.Windows.Application
         menu.Items.Add("Full screen", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FullScreen));
         menu.Items.Add("Active window", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.ActiveWindow));
         menu.Items.Add("Fixed-size region", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FixedRegion));
+        _delayMenu = new Forms.ToolStripMenuItem("Capture delay");
+        for (var seconds = 0; seconds <= 10; seconds++)
+        {
+            var item = new Forms.ToolStripMenuItem(DelayLabel(seconds))
+            {
+                Tag = seconds
+            };
+            item.Click += DelayMenuItem_OnClick;
+            _delayMenu.DropDownItems.Add(item);
+        }
+
+        menu.Items.Add(_delayMenu);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Open captures folder", null, (_, _) => OpenCaptureFolder());
         menu.Items.Add("Settings", null, (_, _) => OpenSettings());
@@ -124,6 +138,55 @@ public partial class App : System.Windows.Application
             Visible = true
         };
         _notifyIcon.DoubleClick += (_, _) => _ = BeginCaptureAsync(CaptureMode.Region);
+        UpdateDelayMenuChecks();
+    }
+
+    private void DelayMenuItem_OnClick(object? sender, EventArgs e)
+    {
+        if (_settings is null || _settingsService is null || sender is not Forms.ToolStripMenuItem item || item.Tag is not int seconds)
+        {
+            return;
+        }
+
+        _settings.CaptureDelaySeconds = Math.Clamp(seconds, 0, 10);
+        _settingsService.Save(_settings);
+        UpdateDelayMenuChecks();
+    }
+
+    private void UpdateDelayMenuChecks()
+    {
+        if (_delayMenu is null || _settings is null)
+        {
+            return;
+        }
+
+        foreach (Forms.ToolStripItem entry in _delayMenu.DropDownItems)
+        {
+            if (entry is Forms.ToolStripMenuItem item)
+            {
+                item.Checked = item.Tag is int seconds && seconds == _settings.CaptureDelaySeconds;
+            }
+        }
+    }
+
+    private static string DelayLabel(int seconds)
+    {
+        if (seconds == 0)
+        {
+            return "0 seconds (immediate)";
+        }
+
+        return seconds == 1 ? "1 second" : seconds + " seconds";
+    }
+
+    private void SetTrayBadge(string? text)
+    {
+        if (_notifyIcon is null)
+        {
+            return;
+        }
+
+        _notifyIcon.Text = string.IsNullOrWhiteSpace(text) ? "FrameIt" : text;
     }
 
     private async Task BeginCaptureAsync(CaptureMode mode)
@@ -207,6 +270,7 @@ public partial class App : System.Windows.Application
 
         _settings = window.UpdatedSettings;
         _settingsService.Save(_settings);
+        UpdateDelayMenuChecks();
         RegisterHotkeys(showConflictNotification: true);
     }
 
