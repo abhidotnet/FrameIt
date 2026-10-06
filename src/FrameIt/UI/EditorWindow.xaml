@@ -9,7 +9,8 @@
     MinHeight="520"
     Background="#F3F3F3"
     WindowStartupLocation="CenterScreen"
-    UseLayoutRounding="True">
+    UseLayoutRounding="True"
+    KeyboardNavigation.ControlTabNavigation="None">
     <Window.Resources>
         <Style x:Key="RibbonToggle" TargetType="ToggleButton">
             <Setter Property="Width" Value="58" />
@@ -381,6 +382,24 @@
                         <TextBlock Grid.Row="1" Style="{StaticResource GroupCaption}" Text="File" />
                     </Grid>
                 </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Border
+            x:Name="RestoreNoticeBar"
+            DockPanel.Dock="Top"
+            Visibility="Collapsed"
+            Background="#FFF4D6"
+            BorderBrush="#E6D7A2"
+            BorderThickness="0,0,0,1"
+            Cursor="Hand"
+            MouseLeftButtonUp="RestoreNoticeBar_OnMouseLeftButtonUp">
+            <TextBlock x:Name="RestoreNoticeText" Margin="10,6" TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Border DockPanel.Dock="Top" Background="#ECECEC" BorderBrush="#D0D0D0" BorderThickness="0,0,0,1">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel x:Name="TabStrip" Orientation="Horizontal" />
             </ScrollViewer>
         </Border>
 

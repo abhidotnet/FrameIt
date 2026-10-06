@@ -46,6 +46,11 @@
                             <TextBox x:Name="JpegQualityTextBox" Width="80" />
                         </StackPanel>
 
+                        <TextBlock Text="Session recovery" FontWeight="SemiBold" />
+                        <TextBlock x:Name="SessionFolderText" TextWrapping="Wrap" Foreground="#444444" Margin="0,8,0,8" />
+                        <Button x:Name="ClearSessionButton" HorizontalAlignment="Left" Content="Clear session data" Click="ClearSessionButton_OnClick" />
+                        <TextBlock x:Name="SessionClearStatus" TextWrapping="Wrap" Margin="0,8,0,12" />
+
                         <GroupBox Header="Global hotkeys">
                             <Grid Margin="8">
                                 <Grid.ColumnDefinitions>

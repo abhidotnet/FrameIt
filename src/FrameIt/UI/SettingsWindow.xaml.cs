@@ -12,11 +12,15 @@ public partial class SettingsWindow : Window
 {
     private readonly AppSettings _workingCopy;
     private readonly WindowsCredentialStore _credentials = new();
+    private readonly SessionStore? _sessions;
+    private readonly Func<long>? _clearSessions;
 
-    public SettingsWindow(AppSettings source)
+    public SettingsWindow(AppSettings source, SessionStore? sessions = null, Func<long>? clearSessions = null)
     {
         InitializeComponent();
         _workingCopy = Clone(source);
+        _sessions = sessions;
+        _clearSessions = clearSessions;
         SmtpSecurityCombo.ItemsSource = new[]
         {
             new Choice(SmtpSecurityMode.None, "None"),
@@ -33,7 +37,61 @@ public partial class SettingsWindow : Window
 
         SmtpSecurityNote.Text = SmtpMailSender.SecurityNote;
         SftpNoticeText.Text = UnsupportedSftpUploader.Explanation;
+        if (_sessions is null || _clearSessions is null)
+        {
+            ClearSessionButton.Visibility = Visibility.Collapsed;
+            SessionFolderText.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            SessionFolderText.Text =
+                "Recovery files are stored in " + _sessions.Root +
+                ". FrameIt keeps them for 30 days or until they pass 200 MB, whichever comes first. " +
+                "They are separate from the capture folder and from Save As. " +
+                "Clear session data deletes that folder's tab files. Open tabs are written again so this session can still be restored.";
+        }
+
         Bind();
+    }
+
+    private void ClearSessionButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_clearSessions is null)
+        {
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show(
+            this,
+            "Clear session recovery files? This does not delete your capture folder or Save As files. Open tabs stay open and are written again.",
+            "FrameIt",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            var freed = _clearSessions();
+            SessionClearStatus.Text = "Cleared session data (" + FormatBytes(freed) + " removed before open tabs were saved again).";
+        }
+        catch (Exception ex)
+        {
+            SessionClearStatus.Text = ex.Message;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return bytes + " B";
+        }
+
+        var megabytes = bytes / (1024d * 1024d);
+        return megabytes.ToString("0.0") + " MB";
     }
 
     public AppSettings? UpdatedSettings { get; private set; }

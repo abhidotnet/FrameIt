@@ -1,8 +1,12 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FrameIt", "src\FrameIt\FrameIt.csproj", "{E6CF6CA8-3A62-4C57-B605-1EC1732698CB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3FA00639-792F-4F64-BA78-353FA5AE38E9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SessionHousekeepingCheck", "tests\SessionHousekeepingCheck\SessionHousekeepingCheck.csproj", "{86C8C58D-85DE-4F43-9647-8DD724A3DA3A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,8 +18,15 @@ Global
 		{E6CF6CA8-3A62-4C57-B605-1EC1732698CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E6CF6CA8-3A62-4C57-B605-1EC1732698CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E6CF6CA8-3A62-4C57-B605-1EC1732698CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86C8C58D-85DE-4F43-9647-8DD724A3DA3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86C8C58D-85DE-4F43-9647-8DD724A3DA3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86C8C58D-85DE-4F43-9647-8DD724A3DA3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86C8C58D-85DE-4F43-9647-8DD724A3DA3A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{86C8C58D-85DE-4F43-9647-8DD724A3DA3A} = {3FA00639-792F-4F64-BA78-353FA5AE38E9}
 	EndGlobalSection
 EndGlobal

@@ -2,7 +2,7 @@
 
 FrameIt is a PicPick-style Windows screen capture utility. It runs from the system tray, captures from the keyboard, and opens the shot in an editor for crop, annotation, redaction, and save.
 
-> Milestones covered here: **M1 (Capture)**, **M2 (Editor)**, and **M3 (Delay and share)**.
+> Milestones covered here: **M1 (Capture)**, **M2 (Editor)**, **M3 (Delay and share)**, and **M4 (Tabs and session recovery)**.
 
 ## Tech stack
 
@@ -18,7 +18,7 @@ No external NuGet packages. `nuget.config` only references nuget.org, and `build
 - Windows 10/11 x64
 - .NET 8 SDK
 
-> This repository is built from a Linux environment (`dotnet build` / `dotnet publish` with `EnableWindowsTargeting=true`). Capture, hotkeys, DPI, the editor, file dialogs, the capture countdown, Credential Manager, SMTP, and FTP still have to be validated on a real Windows PC. See `docs/M3-TEST-CHECKLIST.md`.
+> This repository is built from a Linux environment (`dotnet build` / `dotnet publish` with `EnableWindowsTargeting=true`). Capture, hotkeys, DPI, the editor, tabs, session restore, file dialogs, the capture countdown, Credential Manager, SMTP, and FTP still have to be validated on a real Windows PC. See `docs/M4-TEST-CHECKLIST.md`.
 
 ## Build
 
@@ -48,7 +48,9 @@ Editor shortcuts, after a capture:
 - `Ctrl+Z` / `Ctrl+Y` → Undo / Redo
 - `Ctrl+C` → Copy the edited, flattened image
 - `Delete` → Remove the selected annotation or redaction
-- `Esc` → Cancel the in-progress draw, or close. If there are unsaved changes, FrameIt asks before closing.
+- `Ctrl+Tab` / `Ctrl+Shift+Tab` → Next / previous tab
+- `Ctrl+W` → Close the current tab. A tab with unsaved changes asks Save, Discard, or Cancel.
+- `Esc` → Cancel the in-progress draw or crop. If nothing is in progress, the editor hides and the tabs stay in the session.
 
 If hotkey registration fails (for example when Windows Snipping Tool owns PrintScreen), FrameIt shows a tray notification describing how to disable:
 
@@ -90,7 +92,7 @@ The private-key field is a file path. The key file itself stays where you put it
 
 ## M1 capture
 
-- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, Exit.
+- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Capture delay, Open editor, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
 - Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of device pixels, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
 - Full screen captures every monitor into one image the size of the virtual screen, in device pixels. A monitor to the left of the primary (negative coordinates) stays on the left. Region, active window, and fixed-size capture stay on one area.
@@ -109,13 +111,13 @@ The post-capture window is an editor. The toolbar is a light ribbon: icon and sh
 - **Redaction.** Blur or pixelate a dragged rectangle. Strength is 1 (subtle) through 20 (heavy), default 8. Redactions can be selected, moved, and deleted until you save or copy.
 - **History.** Undo/redo covers edits, annotations, and redactions (up to 40 steps). Pixel edits keep a full image copy per step.
 
-A new capture asks to close the current editor first when that editor has unsaved work.
+A new capture opens in its own tab. It does not replace the tab you are editing.
 
 ## M3 delay and share
 
 ### Capture delay
 
-Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt closes the current editor (and after any save prompt) and before the region overlay, full-screen grab, active-window grab, or fixed-size grab.
+Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt hides the editor (so the editor is not in the shot) and before the region overlay, full-screen grab, active-window grab, or fixed-size grab. Hiding does not close tabs.
 
 While the timer runs, a small countdown sits at the top of the monitor under the cursor, and the tray icon text shows the remaining seconds (`FrameIt - 3s`). The countdown does not take focus. Esc cancels the pending capture from any window. A delay of 0 starts the capture immediately, with no overlay.
 
@@ -131,11 +133,34 @@ The same 0–10 second choices are on the tray menu under **Capture delay**, and
 
 X and Instagram are not part of M3.
 
+## M4 tabs and session recovery
+
+Each capture is its own tab. The tab shows a thumbnail and a short name (`Capture 1`, `Capture 2`, …) plus an orange dot while that tab has unsaved edits or a crop marquee that is not applied yet. The tooltip shows the local time and the capture source (region, window, full screen, or fixed).
+
+- Click a tab to switch. Drag a tab to reorder it. Middle-click closes it.
+- Right-click: **Close**, **Close Others**, **Close All**, **Duplicate Tab**.
+- `Ctrl+Tab` and `Ctrl+Shift+Tab` move between tabs. `Ctrl+W` closes the current tab.
+- Closing a dirty tab asks **Save**, **Discard**, or **Cancel**. Save writes the capture file (Save As if it does not have one yet). Discard drops unsaved edits. Neither deletes files that are already in your capture folder.
+- The window X button and `Esc` hide the editor. The tabs stay open. **Open editor** on the tray shows them again. **Exit** on the tray leaves the session in place for the next start.
+
+Session files are not your captures. Auto-save and Save As still write PNG or JPEG files in the capture folder or the folder you pick. Recovery files live only here:
+
+`%LOCALAPPDATA%\FrameIt\sessions`
+
+That folder holds `session.json` (tab order and the active tab), `session.lock` while FrameIt is running, and one folder per tab with the editor image, a thumbnail, and metadata (name, time, capture source, unsaved flag, annotations, and redactions). FrameIt writes the tab when the capture is taken, and again about two seconds after an edit.
+
+On startup FrameIt opens those tabs again. It does not ask whether to restore. If the previous process did not exit cleanly (`session.lock` still present, or the session was left dirty), the editor shows one line: `Restored N tabs from your last session`. A normal Exit restores the same tabs with no line.
+
+FrameIt keeps recovery files for **30 days or 200 MB, whichever comes first**. Files for tabs you still have open are kept. Closed tabs are removed when you close them. Anything left behind is deleted once it is older than 30 days, and sooner if the folder would pass 200 MB. **Settings → Capture → Clear session data** deletes the recovery files. It does not delete the capture folder. Tabs that are open are written again afterward.
+
+Only the active tab is fully decoded. Other tabs keep a small thumbnail until you switch to them, so a long session does not keep every screenshot and its undo stack in memory at once. FrameIt renders that thumbnail when the capture is taken and again after each edit, then reuses it until the next edit. Switching away drops that tab's undo stack; the image and the annotations are what come back.
+
 ## Manual test checklists
 
 - M1: `docs/M1-TEST-CHECKLIST.md`
 - M2: `docs/M2-TEST-CHECKLIST.md`
 - M3: `docs/M3-TEST-CHECKLIST.md`
+- M4: `docs/M4-TEST-CHECKLIST.md`
 
 ## Notes and limitations
 
@@ -143,6 +168,8 @@ X and Instagram are not part of M3.
 - Full screen mode is the whole virtual desktop. Gaps between monitors, if the layout is not a solid rectangle, are black. Each monitor's pixels are copied 1:1; they are not scaled to a common DPI.
 - The editor draws annotations with WPF on screen and with GDI+ when flattening. Text position matches; glyph rasterization can differ by a pixel.
 - Resize uses high-quality bicubic sampling.
-- Runtime behavior (tray, hotkeys, DPI, editor tools, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
+- Runtime behavior (tray, hotkeys, DPI, editor tools, tabs, session restore after a killed process, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
+- An unapplied crop blocks tab switching until you press Enter or Esc. A new capture applies that crop on the current tab so the new shot can open.
+- Undo and redo apply to the tab you are on. Leaving the tab keeps the pixels and the annotations, and starts a fresh undo stack when you come back.
 - SMTP security in this build is STARTTLS via `System.Net.Mail.SmtpClient`. Port 465 implicit TLS is not offered.
 - SFTP upload waits on owner approval of an SSH package. The interface, settings, and credential slots are in place. FTP upload uses the BCL client.

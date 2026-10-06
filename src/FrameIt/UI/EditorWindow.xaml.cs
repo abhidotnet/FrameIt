@@ -29,12 +29,10 @@ public partial class EditorWindow : Window
         DrawingColor.FromArgb(33, 33, 33)
     };
 
-    private readonly EditorSession _session;
     private readonly Func<AppSettings> _getSettings;
     private readonly Action _persistSettings;
     private readonly List<System.Windows.Controls.Button> _colorButtons = new();
 
-    private string? _filePath;
     private EditorTool _tool = EditorTool.Select;
     private DrawingColor _color = Palette[0];
     private DrawingColor _well1 = Palette[0];
@@ -71,13 +69,13 @@ public partial class EditorWindow : Window
     private Bitmap? _previewBitmap;
     private readonly Dictionary<Redaction, RedactionPatch> _patches = new();
 
-    public EditorWindow(Bitmap bitmap, string? filePath, Func<AppSettings> getSettings, Action persistSettings)
+    public EditorWindow(SessionStore sessions, Func<AppSettings> getSettings, Action persistSettings)
     {
         InitializeComponent();
-        _session = new EditorSession(bitmap, startDirty: string.IsNullOrEmpty(filePath));
-        _filePath = string.IsNullOrEmpty(filePath) ? null : filePath;
+        _sessions = sessions;
         _getSettings = getSettings;
         _persistSettings = persistSettings;
+        InitializeSessionTimer();
 
         BuildPalette();
         JpegQualityTextBox.Text = Math.Clamp(_getSettings().JpegQuality, 1, 100).ToString();
@@ -96,14 +94,15 @@ public partial class EditorWindow : Window
         CanvasHost.LostMouseCapture += (_, _) => FinishDrag(null);
         CanvasHost.SizeChanged += (_, _) => UpdateOverlayScale();
 
-        _session.Changed += OnSessionChanged;
         Loaded += (_, _) =>
         {
-            FitToWorkArea();
+            if (_activeTab?.Session is not null)
+            {
+                FitToWorkArea();
+            }
+
             Focus();
         };
-        DisplaySessionImage();
-        UpdateStatus();
         HighlightPalette();
         UpdateColorWells();
     }
@@ -127,6 +126,11 @@ public partial class EditorWindow : Window
 
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var mods = Keyboard.Modifiers;
+        if (TryHandleTabKeys(key, mods))
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (key == Key.Escape)
         {
@@ -208,40 +212,36 @@ public partial class EditorWindow : Window
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        CommitStyleChange();
-        CommitInlineText();
-        if (!e.Cancel && (_session.IsDirty || _cropLive))
+        if (_exitRequested)
         {
-            var result = System.Windows.MessageBox.Show(
-                this,
-                "Save changes to this capture before closing?",
-                "FrameIt",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Warning);
-            if (result is MessageBoxResult.Cancel or MessageBoxResult.None)
-            {
-                e.Cancel = true;
-            }
-            else if (result == MessageBoxResult.Yes && !Save())
-            {
-                e.Cancel = true;
-            }
-            else if (result == MessageBoxResult.No)
-            {
-                ClearLiveCrop();
-            }
+            DisposeTabSessions();
+            base.OnClosing(e);
+            return;
         }
 
-        base.OnClosing(e);
+        e.Cancel = true;
+        if (_activeTab?.Session is not null)
+        {
+            CommitStyleChange();
+            CommitInlineText();
+        }
+
+        FlushOpenTabs();
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!_exitRequested && IsVisible)
+            {
+                Hide();
+            }
+        }));
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        _session.Changed -= OnSessionChanged;
+        DisposeTabSessions();
         _previewBitmap?.Dispose();
         _previewBitmap = null;
         _patches.Clear();
-        _session.Dispose();
         base.OnClosed(e);
     }
 
@@ -650,6 +650,7 @@ public partial class EditorWindow : Window
             _session.MarkClean();
             _persistSettings();
             UpdateStatus();
+            FlushOpenTabs();
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -1418,6 +1419,11 @@ public partial class EditorWindow : Window
         RebuildVisuals();
         SyncSlidersFromSelection();
         UpdateStatus();
+        if (_activeTab?.Session is not null)
+        {
+            RenderThumbnail(_activeTab);
+            ScheduleSessionPersist();
+        }
     }
 
     private void DisplaySessionImage()
@@ -2237,6 +2243,15 @@ public partial class EditorWindow : Window
 
     private void UpdateStatus()
     {
+        if (_activeTab?.Session is null)
+        {
+            StatusText.Text = "No capture open.";
+            Title = "FrameIt Editor";
+            UndoButton.IsEnabled = false;
+            RedoButton.IsEnabled = false;
+            return;
+        }
+
         var dirty = _session.IsDirty ? "Unsaved changes" : "Saved";
         var path = _filePath ?? "Not saved yet";
         var hint = _tool switch
@@ -2253,16 +2268,25 @@ public partial class EditorWindow : Window
             _ => "Drag to draw."
         };
         StatusText.Text = $"{_session.Image.Width}×{_session.Image.Height}    {dirty}    {path}    {hint}";
-        Title = _filePath is null ? "FrameIt Editor" : "FrameIt Editor — " + System.IO.Path.GetFileName(_filePath);
+        var fileName = _filePath is null ? null : System.IO.Path.GetFileName(_filePath);
+        Title = fileName is null
+            ? "FrameIt Editor — " + _activeTab.Name
+            : "FrameIt Editor — " + _activeTab.Name + " — " + fileName;
         UndoButton.IsEnabled = _session.CanUndo;
         RedoButton.IsEnabled = _session.CanRedo;
+        UpdateTabVisuals();
     }
 
     private void FitToWorkArea()
     {
+        if (_activeTab?.Session is null)
+        {
+            return;
+        }
+
         var area = SystemParameters.WorkArea;
         Width = Math.Clamp(_session.Image.Width + 64, MinWidth, Math.Max(MinWidth, area.Width * 0.92));
-        Height = Math.Clamp(_session.Image.Height + 240, MinHeight, Math.Max(MinHeight, area.Height * 0.92));
+        Height = Math.Clamp(_session.Image.Height + 300, MinHeight, Math.Max(MinHeight, area.Height * 0.92));
     }
 
     private static int ClampPixel(double value, int limit)

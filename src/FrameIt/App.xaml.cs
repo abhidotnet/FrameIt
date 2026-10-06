@@ -22,6 +22,8 @@ public partial class App : System.Windows.Application
     private TimingLogger? _timingLogger;
     private GlobalHotkeyService? _hotkeyService;
     private CaptureCoordinator? _captureCoordinator;
+    private SessionStore? _sessionStore;
+    private EditorWindow? _editor;
     private AppSettings? _settings;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -38,15 +40,19 @@ public partial class App : System.Windows.Application
         _settings = _settingsService.Load();
         _timingLogger = new TimingLogger(_settingsService.SettingsDirectory);
 
+        _sessionStore = new SessionStore();
+        var uncleanSession = _sessionStore.BeginSession();
+        var snapshot = _sessionStore.LoadSnapshot();
+
         var captureService = new CaptureService();
         var edgeSnapService = new WindowEdgeSnapService();
         _captureCoordinator = new CaptureCoordinator(
             captureService,
             _timingLogger,
             edgeSnapService,
-            () => _settings!,
-            () => _settingsService.Save(_settings!),
-            SetTrayBadge);
+            SetTrayBadge,
+            () => _editor,
+            EnsureEditor);
 
         _hotkeyService = new GlobalHotkeyService();
         _hotkeyHandler = mode => _ = BeginCaptureAsync(mode);
@@ -59,10 +65,35 @@ public partial class App : System.Windows.Application
         {
             _timingLogger.LogStartup(_startupTimer.Elapsed);
         }
+
+        if (snapshot.Tabs.Count > 0)
+        {
+            try
+            {
+                var editor = EnsureEditor();
+                editor.Restore(snapshot, uncleanSession);
+                if (editor.HasTabs)
+                {
+                    editor.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Could not restore the last session. " + ex.Message);
+            }
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        try
+        {
+            _sessionStore?.MarkCleanShutdown();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
         if (_hotkeyService is not null)
         {
             if (_hotkeyHandler is not null)
@@ -125,10 +156,11 @@ public partial class App : System.Windows.Application
 
         menu.Items.Add(_delayMenu);
         menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Open editor", null, (_, _) => ShowEditor());
         menu.Items.Add("Open captures folder", null, (_, _) => OpenCaptureFolder());
         menu.Items.Add("Settings", null, (_, _) => OpenSettings());
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => Shutdown());
+        menu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -235,6 +267,64 @@ public partial class App : System.Windows.Application
             "If PrintScreen is blocked, disable 'Use the Print screen key to open screen capture' in Windows Settings > Accessibility > Keyboard.");
     }
 
+    private void ExitApplication()
+    {
+        try
+        {
+            _editor?.PrepareForProcessExit();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        Shutdown();
+    }
+
+    private EditorWindow EnsureEditor()
+    {
+        if (_editor is not null)
+        {
+            return _editor;
+        }
+
+        var editor = new EditorWindow(_sessionStore!, () => _settings!, () => _settingsService!.Save(_settings!));
+        editor.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_editor, editor))
+            {
+                _editor = null;
+            }
+        };
+        _editor = editor;
+        return editor;
+    }
+
+    private void ShowEditor()
+    {
+        if (_editor is not { HasTabs: true })
+        {
+            ShowNotification("No captures are open.");
+            return;
+        }
+
+        if (!_editor.IsVisible)
+        {
+            _editor.Show();
+        }
+
+        _editor.Activate();
+    }
+
+    private long ClearSessionData()
+    {
+        if (_editor is not null)
+        {
+            return _editor.ClearSessionData();
+        }
+
+        return _sessionStore?.ClearTabFiles() ?? 0;
+    }
+
     private void OpenCaptureFolder()
     {
         if (_settings is null)
@@ -258,7 +348,7 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        var window = new SettingsWindow(_settings)
+        var window = new SettingsWindow(_settings, _sessionStore, ClearSessionData)
         {
             Owner = Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
         };

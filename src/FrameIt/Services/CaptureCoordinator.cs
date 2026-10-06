@@ -12,104 +12,112 @@ public sealed class CaptureCoordinator
     private readonly CaptureService _captureService;
     private readonly TimingLogger _timingLogger;
     private readonly WindowEdgeSnapService _edgeSnapService;
-    private readonly Func<AppSettings> _getSettings;
-    private readonly Action _persistSettings;
     private readonly Action<string?> _setBadge;
-    private EditorWindow? _editor;
+    private readonly Func<EditorWindow?> _peekEditor;
+    private readonly Func<EditorWindow> _ensureEditor;
 
     public CaptureCoordinator(
         CaptureService captureService,
         TimingLogger timingLogger,
         WindowEdgeSnapService edgeSnapService,
-        Func<AppSettings> getSettings,
-        Action persistSettings,
-        Action<string?> setBadge)
+        Action<string?> setBadge,
+        Func<EditorWindow?> peekEditor,
+        Func<EditorWindow> ensureEditor)
     {
         _captureService = captureService;
         _timingLogger = timingLogger;
         _edgeSnapService = edgeSnapService;
-        _getSettings = getSettings;
-        _persistSettings = persistSettings;
         _setBadge = setBadge;
+        _peekEditor = peekEditor;
+        _ensureEditor = ensureEditor;
     }
 
     public async Task CaptureAsync(CaptureMode mode, AppSettings settings)
     {
         var totalTimer = Stopwatch.StartNew();
-        if (!TryCloseEditor())
+        var existing = _peekEditor();
+        var wasVisible = existing is { IsVisible: true };
+        if (wasVisible)
         {
-            return;
+            existing!.HideForCapture();
         }
 
-        // Close the editor first so its save prompt is not the thing on screen during the wait.
+        // Hide the editor so it is not part of the shot and the countdown is not covered by it.
         // The countdown stays non-activating, then closes before the capture reads the foreground window.
-        var delayWatch = Stopwatch.StartNew();
-        if (!await CaptureDelay.WaitAsync(settings.CaptureDelaySeconds, _setBadge))
+        var settled = false;
+        try
         {
-            return;
-        }
-
-        delayWatch.Stop();
-        var delayElapsed = delayWatch.Elapsed;
-
-        Bitmap? bitmap;
-        if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
-        {
-            var selectionMode = mode == CaptureMode.FixedRegion
-                ? FrameIt.UI.SelectionMode.FixedSize
-                : FrameIt.UI.SelectionMode.Freeform;
-            bitmap = RegionSelectionWindow.CaptureRegion(_edgeSnapService, selectionMode, settings);
-        }
-        else if (mode == CaptureMode.FullScreen)
-        {
-            bitmap = _captureService.CaptureVirtualScreen();
-        }
-        else
-        {
-            var bounds = await ResolveBoundsAsync(mode, settings);
-            bitmap = bounds.HasValue ? _captureService.CaptureRectangle(bounds.Value) : null;
-        }
-
-        if (bitmap is null)
-        {
-            return;
-        }
-
-        using (bitmap)
-        {
-            var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
-
-            string? filePath = null;
-            if (settings.AutoSaveCaptures)
+            var delayWatch = Stopwatch.StartNew();
+            if (!await CaptureDelay.WaitAsync(settings.CaptureDelaySeconds, _setBadge))
             {
-                Directory.CreateDirectory(settings.CaptureFolder);
-                filePath = Path.Combine(
-                    settings.CaptureFolder,
-                    $"capture-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-                bitmap.Save(filePath, ImageFormat.Png);
+                ReopenEditor(existing, wasVisible);
+                settled = true;
+                return;
             }
 
-            var source = BitmapInterop.ToBitmapSource(bitmap);
-            BitmapInterop.TrySetClipboard(source);
+            delayWatch.Stop();
+            var delayElapsed = delayWatch.Elapsed;
 
-            var editor = new EditorWindow(bitmap, filePath, _getSettings, _persistSettings);
-            editor.Closed += (_, _) =>
+            Bitmap? bitmap;
+            if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
             {
-                if (ReferenceEquals(_editor, editor))
+                var selectionMode = mode == CaptureMode.FixedRegion
+                    ? FrameIt.UI.SelectionMode.FixedSize
+                    : FrameIt.UI.SelectionMode.Freeform;
+                bitmap = RegionSelectionWindow.CaptureRegion(_edgeSnapService, selectionMode, settings);
+            }
+            else if (mode == CaptureMode.FullScreen)
+            {
+                bitmap = _captureService.CaptureVirtualScreen();
+            }
+            else
+            {
+                var bounds = await ResolveBoundsAsync(mode, settings);
+                bitmap = bounds.HasValue ? _captureService.CaptureRectangle(bounds.Value) : null;
+            }
+
+            if (bitmap is null)
+            {
+                ReopenEditor(existing, wasVisible);
+                settled = true;
+                return;
+            }
+
+            using (bitmap)
+            {
+                var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
+
+                string? filePath = null;
+                if (settings.AutoSaveCaptures)
                 {
-                    _editor = null;
+                    Directory.CreateDirectory(settings.CaptureFolder);
+                    filePath = NextCapturePath(settings.CaptureFolder);
+                    bitmap.Save(filePath, ImageFormat.Png);
                 }
-            };
-            _editor = editor;
-            editor.Show();
-            editor.Activate();
 
-            if (settings.EnableTimingLogs)
+                var source = BitmapInterop.ToBitmapSource(bitmap);
+                BitmapInterop.TrySetClipboard(source);
+
+                var editor = _ensureEditor();
+                editor.AddCapture(bitmap, filePath, mode);
+                editor.Show();
+                editor.Activate();
+                settled = true;
+
+                if (settings.EnableTimingLogs)
+                {
+                    var provider = _captureService.IsWindowsGraphicsCaptureSupported()
+                        ? "gdi-fallback-wgc-available"
+                        : "gdi-fallback";
+                    _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
+                }
+            }
+        }
+        finally
+        {
+            if (!settled)
             {
-                var provider = _captureService.IsWindowsGraphicsCaptureSupported()
-                    ? "gdi-fallback-wgc-available"
-                    : "gdi-fallback";
-                _timingLogger.LogCapture(mode.ToString(), captureElapsed, SubtractDelay(totalTimer.Elapsed, delayElapsed), provider);
+                ReopenEditor(existing, wasVisible);
             }
         }
     }
@@ -131,15 +139,35 @@ public sealed class CaptureCoordinator
         return adjusted < TimeSpan.Zero ? TimeSpan.Zero : adjusted;
     }
 
-    private bool TryCloseEditor()
+    private static void ReopenEditor(EditorWindow? editor, bool wasVisible)
     {
-        if (_editor is null)
+        if (!wasVisible || editor is not { HasTabs: true })
         {
-            return true;
+            return;
         }
 
-        var editor = _editor;
-        editor.Close();
-        return !editor.IsVisible;
+        editor.Show();
+        editor.Activate();
+    }
+
+    private static string NextCapturePath(string folder)
+    {
+        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        var candidate = Path.Combine(folder, "capture-" + stamp + ".png");
+        if (!File.Exists(candidate))
+        {
+            return candidate;
+        }
+
+        for (var index = 2; index < 1000; index++)
+        {
+            candidate = Path.Combine(folder, "capture-" + stamp + "-" + index + ".png");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return Path.Combine(folder, "capture-" + stamp + "-" + Guid.NewGuid().ToString("N") + ".png");
     }
 }
