@@ -1,0 +1,74 @@
+<Window
+    x:Class="FrameIt.UI.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="FrameIt Settings"
+    Width="620"
+    SizeToContent="Height"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="NoResize">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Capture folder" FontWeight="SemiBold" />
+        <DockPanel Grid.Row="1" Margin="0,8,0,12">
+            <Button x:Name="BrowseFolderButton" Width="96" Margin="8,0,0,0" DockPanel.Dock="Right" Click="BrowseFolderButton_OnClick">Browse</Button>
+            <TextBox x:Name="CaptureFolderTextBox" />
+        </DockPanel>
+
+        <TextBlock Grid.Row="2" Text="Fixed-size region (pixels)" FontWeight="SemiBold" />
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,12">
+            <TextBlock VerticalAlignment="Center" Text="Width" Margin="0,0,8,0" />
+            <TextBox x:Name="FixedWidthTextBox" Width="100" Margin="0,0,16,0" />
+            <TextBlock VerticalAlignment="Center" Text="Height" Margin="0,0,8,0" />
+            <TextBox x:Name="FixedHeightTextBox" Width="100" />
+        </StackPanel>
+
+        <CheckBox Grid.Row="4" x:Name="TimingLogsCheckBox" Content="Enable local timing logs (no image data)" Margin="0,0,0,8" />
+        <CheckBox Grid.Row="5" x:Name="AutoSaveCheckBox" Content="Auto-save captures as PNG (capture-YYYYMMDD-HHmmss.png)" Margin="0,0,0,8" />
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock VerticalAlignment="Center" Text="JPEG quality (1–100)" Margin="0,0,8,0" />
+            <TextBox x:Name="JpegQualityTextBox" Width="80" />
+        </StackPanel>
+
+        <GroupBox Grid.Row="7" Header="Global hotkeys">
+            <Grid Margin="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">Region capture</TextBlock>
+                <TextBox x:Name="RegionHotkeyTextBox" Grid.Row="0" Grid.Column="1" Margin="8,4,0,4" />
+                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center">Full screen</TextBlock>
+                <TextBox x:Name="FullScreenHotkeyTextBox" Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" />
+                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">Active window</TextBlock>
+                <TextBox x:Name="ActiveWindowHotkeyTextBox" Grid.Row="2" Grid.Column="1" Margin="8,4,0,4" />
+                <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center">Fixed-size region</TextBlock>
+                <TextBox x:Name="FixedRegionHotkeyTextBox" Grid.Row="3" Grid.Column="1" Margin="8,4,0,4" />
+            </Grid>
+        </GroupBox>
+
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Width="96" Margin="0,0,8,0" Click="CancelButton_OnClick">Cancel</Button>
+            <Button Width="120" Click="SaveButton_OnClick">Save settings</Button>
+        </StackPanel>
+    </Grid>
+</Window>
