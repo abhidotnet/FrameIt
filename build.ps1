@@ -6,6 +6,8 @@ $project = Join-Path $root "src/FrameIt/FrameIt.csproj"
 
 $portableOut = Join-Path $root "artifacts/portable"
 $frameworkOut = Join-Path $root "artifacts/framework-dependent"
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+$env:DOTNET_NOLOGO = "1"
 
 Push-Location $root
 try {
