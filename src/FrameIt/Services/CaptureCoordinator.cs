@@ -60,6 +60,10 @@ public sealed class CaptureCoordinator
                 : FrameIt.UI.SelectionMode.Freeform;
             bitmap = RegionSelectionWindow.CaptureRegion(_edgeSnapService, selectionMode, settings);
         }
+        else if (mode == CaptureMode.FullScreen)
+        {
+            bitmap = _captureService.CaptureVirtualScreen();
+        }
         else
         {
             var bounds = await ResolveBoundsAsync(mode, settings);
@@ -117,7 +121,6 @@ public sealed class CaptureCoordinator
         return mode switch
         {
             CaptureMode.ActiveWindow => _captureService.GetActiveWindowBounds(),
-            CaptureMode.FullScreen => _captureService.GetMonitorUnderCursorBounds(),
             _ => null
         };
     }

@@ -37,7 +37,7 @@ The script:
 ## Hotkeys (default)
 
 - `PrintScreen` → Region capture
-- `Shift+PrintScreen` → Full screen (monitor under cursor)
+- `Shift+PrintScreen` → Full screen (every monitor, one image)
 - `Alt+PrintScreen` → Active window
 - `Ctrl+Shift+PrintScreen` → Fixed-size region (default 800×600)
 
@@ -93,7 +93,7 @@ The private-key field is a file path. The key file itself stays where you put it
 - Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
 - Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of device pixels, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
-- Full screen captures the monitor under the cursor.
+- Full screen captures every monitor into one image the size of the virtual screen, in device pixels. A monitor to the left of the primary (negative coordinates) stays on the left. Region, active window, and fixed-size capture stay on one area.
 - Active window and fixed-size region capture.
 - Per-monitor DPI (`PerMonitorV2`).
 - After capture: copy the original image to the clipboard, optionally auto-save PNG, open the editor.
@@ -101,7 +101,7 @@ The private-key field is a file path. The key file itself stays where you put it
 
 ## M2 editor
 
-The post-capture window is an editor. Annotations and redactions stay editable until you save or copy; the file and the clipboard image are flattened pixels. There is no separate project file, so opening that PNG or JPEG later (in Paint, for example) shows the flattened result. Saving does not clear the editor, so you can keep moving shapes and save again.
+The post-capture window is an editor. The toolbar is a light ribbon: icon and short label, in groups (Clipboard, Image, Tools, Size, Colors, File). Annotations and redactions stay editable until you save or copy; the file and the clipboard image are flattened pixels. There is no separate project file, so opening that PNG or JPEG later (in Paint, for example) shows the flattened result. Saving does not clear the editor, so you can keep moving shapes and save again.
 
 - **Save / Save As.** `Microsoft.Win32.SaveFileDialog`, PNG or JPEG. JPEG uses the quality setting. `Ctrl+S` overwrites the current path.
 - **Edits.** Crop (marquee stays on the photo, bright area is kept, Enter or double-click applies), resize (pixels or percent, aspect lock), rotate 90° left/right, flip horizontal/vertical, brightness/contrast. Brightness and contrast preview live and become one undo step when you apply.
@@ -140,7 +140,7 @@ X and Instagram are not part of M3.
 ## Notes and limitations
 
 - Capture still uses the GDI `BitBlt` path. `Windows.Graphics.Capture` is only probed for the timing log.
-- Full screen mode captures the monitor under the cursor, not every monitor at once.
+- Full screen mode is the whole virtual desktop. Gaps between monitors, if the layout is not a solid rectangle, are black. Each monitor's pixels are copied 1:1; they are not scaled to a common DPI.
 - The editor draws annotations with WPF on screen and with GDI+ when flattening. Text position matches; glyph rasterization can differ by a pixel.
 - Resize uses high-quality bicubic sampling.
 - Runtime behavior (tray, hotkeys, DPI, editor tools, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.

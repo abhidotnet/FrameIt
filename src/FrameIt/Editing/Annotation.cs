@@ -15,7 +15,8 @@ public enum EditorTool
     Text,
     Step,
     Blur,
-    Pixelate
+    Pixelate,
+    Eyedropper
 }
 
 public enum AnnotationKind

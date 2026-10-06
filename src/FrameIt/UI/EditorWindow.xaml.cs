@@ -37,6 +37,9 @@ public partial class EditorWindow : Window
     private string? _filePath;
     private EditorTool _tool = EditorTool.Select;
     private DrawingColor _color = Palette[0];
+    private DrawingColor _well1 = Palette[0];
+    private DrawingColor _well2 = Palette[7];
+    private int _activeWell;
     private float _strokeThickness = 3;
     private float _highlightThickness = 16;
     private float _fontSize = 18;
@@ -102,6 +105,7 @@ public partial class EditorWindow : Window
         DisplaySessionImage();
         UpdateStatus();
         HighlightPalette();
+        UpdateColorWells();
     }
 
     protected override void OnActivated(EventArgs e)
@@ -247,15 +251,15 @@ public partial class EditorWindow : Window
         {
             var button = new System.Windows.Controls.Button
             {
-                Width = 22,
-                MinWidth = 22,
-                Height = 22,
-                Margin = new Thickness(0, 0, 4, 4),
+                Width = 16,
+                MinWidth = 16,
+                Height = 16,
+                Margin = new Thickness(1),
                 Padding = new Thickness(0),
                 Background = BrushFrom(color),
                 BorderBrush = System.Windows.Media.Brushes.Gray,
                 BorderThickness = new Thickness(1),
-                ToolTip = "Annotation color",
+                ToolTip = "Use this palette color",
                 Tag = color
             };
             var chosen = color;
@@ -291,9 +295,9 @@ public partial class EditorWindow : Window
             _selectedRedaction = null;
         }
 
-        foreach (var child in ToolsPanel.Children)
+        foreach (var toggle in EnumerateToggles(ToolsPanel))
         {
-            if (child is ToggleButton toggle && toggle.Tag is string tag && Enum.TryParse(tag, out EditorTool parsed))
+            if (toggle.Tag is string tag && Enum.TryParse(tag, out EditorTool parsed))
             {
                 toggle.IsChecked = parsed == tool;
             }
@@ -303,6 +307,7 @@ public partial class EditorWindow : Window
         {
             EditorTool.Select => System.Windows.Input.Cursors.Arrow,
             EditorTool.Text => System.Windows.Input.Cursors.IBeam,
+            EditorTool.Eyedropper => System.Windows.Input.Cursors.Pen,
             _ => System.Windows.Input.Cursors.Cross
         };
         SyncSlidersFromSelection();
@@ -324,10 +329,35 @@ public partial class EditorWindow : Window
         }
     }
 
+    private void ColorWell_OnClick(object sender, RoutedEventArgs e)
+    {
+        var index = sender is System.Windows.Controls.Button { Tag: string tag } && tag == "1" ? 1 : 0;
+        if (index == _activeWell)
+        {
+            CustomColor_OnClick(sender, e);
+            return;
+        }
+
+        _activeWell = index;
+        _color = index == 0 ? _well1 : _well2;
+        HighlightPalette();
+        UpdateColorWells();
+    }
+
     private void SetColor(DrawingColor color)
     {
         _color = DrawingColor.FromArgb(255, color.R, color.G, color.B);
+        if (_activeWell == 0)
+        {
+            _well1 = _color;
+        }
+        else
+        {
+            _well2 = _color;
+        }
+
         HighlightPalette();
+        UpdateColorWells();
         if (_selectedAnnotation is null)
         {
             return;
@@ -345,6 +375,37 @@ public partial class EditorWindow : Window
             var matches = button.Tag is DrawingColor color && color.ToArgb() == _color.ToArgb();
             button.BorderBrush = matches ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Gray;
             button.BorderThickness = new Thickness(matches ? 2 : 1);
+        }
+    }
+
+    private void UpdateColorWells()
+    {
+        Color1Button.Background = BrushFrom(_well1);
+        Color2Button.Background = BrushFrom(_well2);
+        Color1Button.BorderBrush = _activeWell == 0 ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Gray;
+        Color1Button.BorderThickness = new Thickness(_activeWell == 0 ? 2 : 1);
+        Color2Button.BorderBrush = _activeWell == 1 ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.Gray;
+        Color2Button.BorderThickness = new Thickness(_activeWell == 1 ? 2 : 1);
+    }
+
+    private static IEnumerable<ToggleButton> EnumerateToggles(System.Windows.DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is not System.Windows.DependencyObject node)
+            {
+                continue;
+            }
+
+            if (node is ToggleButton toggle)
+            {
+                yield return toggle;
+            }
+
+            foreach (var nested in EnumerateToggles(node))
+            {
+                yield return nested;
+            }
         }
     }
 
@@ -703,6 +764,19 @@ public partial class EditorWindow : Window
         CommitInlineText();
         Focus();
         var point = ToImage(e);
+
+        if (_tool == EditorTool.Eyedropper)
+        {
+            if (_session.Image.Width > 0 && _session.Image.Height > 0)
+            {
+                var x = (int)Math.Clamp(Math.Floor(point.X), 0, _session.Image.Width - 1);
+                var y = (int)Math.Clamp(Math.Floor(point.Y), 0, _session.Image.Height - 1);
+                SetColor(_session.Image.GetPixel(x, y));
+            }
+
+            e.Handled = true;
+            return;
+        }
 
         if (_tool == EditorTool.Select && e.ClickCount >= 2)
         {
@@ -2175,6 +2249,7 @@ public partial class EditorWindow : Window
             EditorTool.Step => "Click to place the next numbered step.",
             EditorTool.Blur => "Drag a rectangle to blur.",
             EditorTool.Pixelate => "Drag a rectangle to pixelate.",
+            EditorTool.Eyedropper => "Click the image to pick a color.",
             _ => "Drag to draw."
         };
         StatusText.Text = $"{_session.Image.Width}×{_session.Image.Height}    {dirty}    {path}    {hint}";

@@ -68,6 +68,8 @@
                                 <TextBox x:Name="FixedRegionHotkeyTextBox" Grid.Row="3" Grid.Column="1" Margin="8,4,0,4" />
                             </Grid>
                         </GroupBox>
+                        <TextBlock TextWrapping="Wrap" Foreground="#444444" Margin="0,8,0,0"
+                                   Text="Full screen captures every monitor into one image, in device pixels. That includes a monitor to the left of the primary. Region, active window, and fixed-size stay on one area." />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

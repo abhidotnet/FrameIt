@@ -21,9 +21,11 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
    - Confirm the saved PNG does not contain that zoomed loupe. The magnification is preview-only.
 
 4. **Full-screen hotkey**
-   - Press `Shift+PrintScreen`.
-   - Confirm the monitor currently under cursor is captured.
-   - Confirm image is shown in viewer and saved.
+   - Press `Shift+PrintScreen` (or tray **Full screen**).
+   - Confirm one image contains every monitor, arranged as on the virtual desktop.
+   - If a monitor sits left of the primary, confirm it appears on the left of the image (negative virtual-desktop coordinates).
+   - Confirm the PNG width and height match the virtual screen in device pixels, with no stretch. At 100% zoom, text on each monitor matches that monitor 1:1.
+   - Region, active window, and fixed-size still capture only the area you chose, not every monitor.
 
 5. **Active window hotkey**
    - Focus a non-FrameIt window.
@@ -53,7 +55,7 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
    - Confirm the PNG is that many pixels, not the DIP size and not a magnified crop. At 100% zoom in Paint, text and edges match the screen 1:1.
    - Repeat on the 100% monitor, and once with a selection that crosses both monitors.
    - Snap to a window edge and confirm the image still lines up 1:1. Snapping must not zoom or stretch the pixels.
-   - Full-screen capture each monitor and confirm the PNG matches that monitor's device-pixel size.
+   - Full-screen capture and confirm the PNG is the whole virtual desktop: each monitor at its own device-pixel size, not scaled to match the other.
 
 10. **Viewer close + timing goals**
     - Confirm `Esc` closes viewer window.

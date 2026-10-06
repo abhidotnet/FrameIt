@@ -41,6 +41,56 @@ public sealed class CaptureService
         return System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? Rectangle.Empty;
     }
 
+    public Bitmap CaptureVirtualScreen()
+    {
+        var virtualBounds = System.Windows.Forms.SystemInformation.VirtualScreen;
+        if (virtualBounds.Width <= 0 || virtualBounds.Height <= 0)
+        {
+            virtualBounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? Rectangle.Empty;
+        }
+
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        if (screens.Length <= 1)
+        {
+            return CaptureRectangle(virtualBounds);
+        }
+
+        // One bitmap in virtual-screen device pixels. A monitor left of the primary has a
+        // negative Left; subtracting the virtual origin places it at x = 0 without scaling.
+        var stitched = new Bitmap(virtualBounds.Width, virtualBounds.Height, PixelFormat.Format32bppArgb);
+        stitched.SetResolution(96, 96);
+        try
+        {
+            using (var graphics = Graphics.FromImage(stitched))
+            {
+                graphics.Clear(Color.Black);
+            }
+
+            foreach (var screen in screens)
+            {
+                var bounds = screen.Bounds;
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    continue;
+                }
+
+                using var part = CaptureRectangle(bounds);
+                BlitDevicePixels(
+                    stitched,
+                    part,
+                    bounds.Left - virtualBounds.Left,
+                    bounds.Top - virtualBounds.Top);
+            }
+
+            return stitched;
+        }
+        catch
+        {
+            stitched.Dispose();
+            throw;
+        }
+    }
+
     public Rectangle? GetActiveWindowBounds()
     {
         var hwnd = NativeMethods.GetForegroundWindow();
@@ -165,5 +215,35 @@ public sealed class CaptureService
         }
 
         return destination;
+    }
+
+    private static void BlitDevicePixels(Bitmap destination, Bitmap source, int destX, int destY)
+    {
+        var destRect = Rectangle.Intersect(
+            new Rectangle(destX, destY, source.Width, source.Height),
+            new Rectangle(0, 0, destination.Width, destination.Height));
+        if (destRect.Width < 1 || destRect.Height < 1)
+        {
+            return;
+        }
+
+        var sourceRect = new Rectangle(destRect.X - destX, destRect.Y - destY, destRect.Width, destRect.Height);
+        var sourceData = source.LockBits(sourceRect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        var destinationData = destination.LockBits(destRect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var rowBytes = destRect.Width * 4;
+            var buffer = new byte[rowBytes];
+            for (var y = 0; y < destRect.Height; y++)
+            {
+                Marshal.Copy(sourceData.Scan0 + (y * sourceData.Stride), buffer, 0, rowBytes);
+                Marshal.Copy(buffer, 0, destinationData.Scan0 + (y * destinationData.Stride), rowBytes);
+            }
+        }
+        finally
+        {
+            source.UnlockBits(sourceData);
+            destination.UnlockBits(destinationData);
+        }
     }
 }

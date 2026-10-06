@@ -23,7 +23,7 @@ Use a mailbox and an FTP server you control. Do not point FrameIt at an account 
 
 4. **Every capture mode waits**
    - With the delay at 2, run Region, Full screen, Active window, and Fixed-size region.
-   - Confirm each one waits, then behaves as in M1 (region overlay, monitor under the cursor, foreground window, fixed rectangle).
+   - Confirm each one waits, then behaves as in M1 (region overlay, all-monitor full screen, foreground window, fixed rectangle).
    - Set the delay back to 0 from the tray menu. Confirm Settings → Capture shows 0 after you reopen it, and `%APPDATA%\FrameIt\settings.json` contains `"CaptureDelaySeconds": 0`.
 
 5. **Invalid delay**
@@ -75,3 +75,15 @@ Use a mailbox and an FTP server you control. Do not point FrameIt at an account 
     - Open the PNG at 100% zoom in Paint. Text and edges match the screen 1:1. The loupe's zoomed patch is not in the file.
     - Repeat on a second monitor at a different scale, and once with a selection that crosses the boundary.
     - Snap to a window edge. Confirm the image lines up with that edge and the pixels are still 1:1. Snapping does not zoom or stretch.
+
+13. **Full screen is every monitor**
+    - With two or more monitors, choose tray **Full screen** or press `Shift+PrintScreen`.
+    - Confirm the editor shows one image of the whole virtual desktop, monitors in the same arrangement as Windows.
+    - A display to the left of the primary appears on the left. Mixed scaling (100% and 150%) does not stretch one monitor to match the other.
+    - Region, active window, and fixed-size still capture a single area.
+
+14. **Editor ribbon**
+    - Confirm the editor toolbar is icon buttons with short labels, grouped Clipboard, Image, Tools, Size, Colors, and File.
+    - Move, Crop, Arrow, Line, Draw, Mark, Text, Rect, Oval, Step, Blur, and Pixel still work. Effects, Resize, and Rotate (left, right, flip horizontal, flip vertical) still work.
+    - Copy, Undo, Redo, Save, Save As, and Share → Email / Upload (FTP) / Upload (SFTP) are still on the ribbon. Tooltips still name the shortcuts.
+    - Color 1 is the drawing color. Color 2 switches the drawing color when clicked. Pick samples a pixel from the image into the active color. More opens the custom color dialog. The palette still sets the active color.
