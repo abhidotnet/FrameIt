@@ -41,7 +41,7 @@ To rebuild the Setup exe, install [Inno Setup 6](https://jrsoftware.org/isinfo.p
 ./build.ps1 -Installer
 ```
 
-That refreshes `dist/portable/` and compiles `installer/FrameIt-Beta.iss` to `dist/installer/FrameIt-Beta-Setup.exe`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.4.3. The installer was not launched on Windows from this environment.
+That refreshes `dist/portable/` and compiles `installer/FrameIt-Beta.iss` to `dist/installer/FrameIt-Beta-Setup.exe`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.7.3 and then test-signed (see below). The installer was not launched on Windows from this environment. `build.ps1` re-publishes `dist/portable/`, which replaces the signed files with unsigned ones, so sign again after a rebuild.
 
 ### Portable build
 
@@ -52,6 +52,31 @@ That refreshes `dist/portable/` and compiles `installer/FrameIt-Beta.iss` to `di
 3. Run `FrameIt.exe`.
 
 There is no installer and no Start menu shortcut. Exit from the tray icon. Settings still go to `%APPDATA%\FrameIt`, and session recovery still goes to `%LOCALAPPDATA%\FrameIt\sessions`.
+
+### Test signing (beta)
+
+The beta binaries (`dist/portable/FrameIt.exe`, `dist/portable/FrameIt.dll`, and `dist/installer/FrameIt-Beta-Setup.exe`) are signed with a self-signed test certificate, `dist/FrameIt-Test-Certificate.cer` (subject `CN=Abhijit Shrikhande (FrameIt Test)`). The Microsoft DLLs keep their own Microsoft signatures.
+
+On a test PC:
+
+1. Before extracting, unblock the downloaded zip (or the files) so Windows drops the "downloaded from the internet" mark:
+
+   ```powershell
+   Unblock-File -Path .\FrameIt.zip
+   # or, for files already extracted:
+   Get-ChildItem -Recurse | Unblock-File
+   ```
+
+2. Trust the test certificate by running these in an **admin** PowerShell from the repository root:
+
+   ```powershell
+   Import-Certificate -FilePath .\dist\FrameIt-Test-Certificate.cer -CertStoreLocation Cert:\LocalMachine\Root
+   Import-Certificate -FilePath .\dist\FrameIt-Test-Certificate.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher
+   ```
+
+3. Check a file with `Get-AuthenticodeSignature .\dist\installer\FrameIt-Beta-Setup.exe`. It should report `Valid`.
+
+This only helps on PCs where you import the certificate yourself. It does **not** remove SmartScreen or "unknown publisher" warnings for anyone else. That needs a publicly trusted code-signing certificate, such as Azure Trusted Signing.
 
 ## Build
 
