@@ -16,9 +16,42 @@ No external NuGet packages. `nuget.config` only references nuget.org, and `build
 ## Prerequisites
 
 - Windows 10/11 x64
-- .NET 8 SDK
+- To **run** a downloaded build: [.NET 8 Desktop Runtime, Windows x64](https://dotnet.microsoft.com/en-us/download/dotnet/8.0). On that page choose **Desktop Runtime**, not the SDK, and the **x64** installer. The ASP.NET runtime and the SDK alone are not enough.
+- To **build** from source: .NET 8 SDK
 
 > This repository is built from a Linux environment (`dotnet build` / `dotnet publish` with `EnableWindowsTargeting=true`). Capture, hotkeys, DPI, the editor, tabs, session restore, file dialogs, the capture countdown, Credential Manager, SMTP, and FTP still have to be validated on a real Windows PC. See `docs/M4-TEST-CHECKLIST.md`.
+
+## Download FrameIt Beta
+
+Both downloads are **framework-dependent** win-x64 builds. They are smaller than a self-contained app and do not include the .NET runtime. If the runtime is missing, Windows reports that when you start `FrameIt.exe`. Install the [.NET 8 Desktop Runtime for Windows x64](https://dotnet.microsoft.com/en-us/download/dotnet/8.0), then start FrameIt again.
+
+The tracked files are under `dist/`. `artifacts/` is local build scratch and is not the download. The self-contained publish stays in `artifacts/portable/` and is not committed.
+
+### Installer
+
+`dist/installer/FrameIt-Beta-Setup.exe` is the FrameIt Beta setup program. It installs the same files as `dist/portable/`.
+
+Run `FrameIt-Beta-Setup.exe`. It installs per user, adds a Start menu shortcut named **FrameIt Beta**, and can add a desktop shortcut. Shortcuts use the icon embedded in `FrameIt.exe` (the teal and gold frame). The installer file itself uses `src/FrameIt/Assets/FrameIt.ico`. If the .NET 8 Desktop Runtime is not installed, the wizard offers to open the download page and still lets you finish setup.
+
+Uninstall **FrameIt Beta** from Windows Settings → Apps.
+
+To rebuild the Setup exe, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and from the repository root run:
+
+```powershell
+./build.ps1 -Installer
+```
+
+That refreshes `dist/portable/` and compiles `installer/FrameIt-Beta.iss` to `dist/installer/FrameIt-Beta-Setup.exe`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.4.3. The installer was not launched on Windows from this environment.
+
+### Portable build
+
+`dist/portable/` is a framework-dependent folder you can copy anywhere (a USB stick, `Downloads`, a tools directory). Keep every file in that folder together. `FrameIt.exe` needs the DLLs beside it.
+
+1. Install the [.NET 8 Desktop Runtime (Windows x64)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) if it is not already installed.
+2. Copy the whole `dist/portable/` folder.
+3. Run `FrameIt.exe`.
+
+There is no installer and no Start menu shortcut. Exit from the tray icon. Settings still go to `%APPDATA%\FrameIt`, and session recovery still goes to `%LOCALAPPDATA%\FrameIt\sessions`.
 
 ## Build
 
@@ -31,8 +64,10 @@ Run from the repository root:
 The script:
 
 1. Restores and builds `FrameIt.sln` in Release.
-2. Publishes a **self-contained single-file win-x64** build to `artifacts/portable/`.
+2. Publishes a **self-contained single-file win-x64** build to `artifacts/portable/` (local scratch, not committed).
 3. Publishes a **framework-dependent win-x64** build to `artifacts/framework-dependent/`.
+4. Copies that framework-dependent app, without PDB files, to `dist/portable/`.
+5. With `-Installer` on Windows, and Inno Setup 6 installed, compiles `dist/installer/FrameIt-Beta-Setup.exe`.
 
 ## Hotkeys (default)
 

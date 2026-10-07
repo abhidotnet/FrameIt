@@ -3,6 +3,7 @@
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+# Local scratch, including the self-contained publish. Downloadable builds are in dist/ and are tracked.
 artifacts/
 
 # User-specific files

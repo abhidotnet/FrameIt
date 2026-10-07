@@ -65,3 +65,8 @@ Session files are under `%LOCALAPPDATA%\FrameIt\sessions`. They are not the capt
 
 10. **Brand icon**
     - Confirm the exe, the tray icon, and the editor title bar / Alt+Tab show the FrameIt brand graphic (nested teal and gold frames), not the generic Windows application icon.
+
+11. **FrameIt Beta package**
+    - Copy `dist/portable/` to a Windows x64 PC that has the .NET 8 Desktop Runtime installed. Run `FrameIt.exe` from that folder and confirm the tray and editor open.
+    - On a PC without that runtime, confirm Windows asks for the .NET 8 Desktop Runtime. Install the x64 Desktop Runtime from https://dotnet.microsoft.com/en-us/download/dotnet/8.0 and run `FrameIt.exe` again.
+    - Run `dist/installer/FrameIt-Beta-Setup.exe`. Confirm it installs **FrameIt Beta**, the shortcut uses the FrameIt icon, and the app starts after the .NET 8 Desktop Runtime is present. To rebuild that Setup exe, install Inno Setup 6 and run `./build.ps1 -Installer`.
