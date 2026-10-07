@@ -168,6 +168,7 @@ Only the active tab is fully decoded. Other tabs keep a small thumbnail until yo
 - Full screen mode is the whole virtual desktop. Gaps between monitors, if the layout is not a solid rectangle, are black. Each monitor's pixels are copied 1:1; they are not scaled to a common DPI.
 - The editor draws annotations with WPF on screen and with GDI+ when flattening. Text position matches; glyph rasterization can differ by a pixel.
 - Resize uses high-quality bicubic sampling.
+- The exe icon is `src/FrameIt/Assets/FrameIt.ico` (16 through 256). The tray loads that same ICO. Window title bars use `FrameIt-256.png` from the same folder. Tray and Alt+Tab appearance still need a Windows check; this environment cannot show them.
 - Runtime behavior (tray, hotkeys, DPI, editor tools, tabs, session restore after a killed process, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
 - An unapplied crop blocks tab switching until you press Enter or Esc. A new capture applies that crop on the current tab so the new shot can open.
 - Undo and redo apply to the tab you are on. Leaving the tab keeps the pixels and the annotations, and starts a fresh undo stack when you come back.

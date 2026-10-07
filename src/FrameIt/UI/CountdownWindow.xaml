@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="FrameIt"
+    Icon="/Assets/FrameIt-256.png"
     Width="220"
     Height="132"
     WindowStyle="None"

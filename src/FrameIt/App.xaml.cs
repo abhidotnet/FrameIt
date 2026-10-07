@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private bool _ownsSingleInstanceMutex;
     private Action<CaptureMode>? _hotkeyHandler;
     private Forms.NotifyIcon? _notifyIcon;
+    private System.Drawing.Icon? _trayIcon;
     private Forms.ToolStripMenuItem? _delayMenu;
     private SettingsService? _settingsService;
     private TimingLogger? _timingLogger;
@@ -107,8 +108,13 @@ public partial class App : System.Windows.Application
         if (_notifyIcon is not null)
         {
             _notifyIcon.Visible = false;
+            _notifyIcon.Icon = null;
             _notifyIcon.Dispose();
+            _notifyIcon = null;
         }
+
+        _trayIcon?.Dispose();
+        _trayIcon = null;
 
         if (_ownsSingleInstanceMutex)
         {
@@ -162,15 +168,32 @@ public partial class App : System.Windows.Application
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
+        _trayIcon = LoadTrayIcon();
         _notifyIcon = new Forms.NotifyIcon
         {
             Text = "FrameIt",
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _trayIcon,
             ContextMenuStrip = menu,
             Visible = true
         };
         _notifyIcon.DoubleClick += (_, _) => _ = BeginCaptureAsync(CaptureMode.Region);
         UpdateDelayMenuChecks();
+    }
+
+    private static System.Drawing.Icon LoadTrayIcon()
+    {
+        const string packUri = "pack://application:,,,/Assets/FrameIt.ico";
+        var resource = GetResourceStream(new Uri(packUri, UriKind.Absolute));
+        if (resource is null)
+        {
+            throw new InvalidOperationException("FrameIt.ico is not embedded. Expected " + packUri + ".");
+        }
+
+        // Icon(Stream) copies the multi-size ICO, so the resource stream can close.
+        using (resource.Stream)
+        {
+            return new System.Drawing.Icon(resource.Stream);
+        }
     }
 
     private void DelayMenuItem_OnClick(object? sender, EventArgs e)

@@ -62,3 +62,6 @@ Session files are under `%LOCALAPPDATA%\FrameIt\sessions`. They are not the capt
    - Save, Save As, undo on the active tab, copy, share, the capture delay, and Esc during a countdown still behave as in M3.
    - A second capture started while a countdown is running is ignored.
    - With a crop marquee on screen, `Ctrl+Tab` does not switch. Enter applies the crop; Esc cancels it. A new capture applies the crop on the current tab and then opens the new shot.
+
+10. **Brand icon**
+    - Confirm the exe, the tray icon, and the editor title bar / Alt+Tab show the FrameIt brand graphic (nested teal and gold frames), not the generic Windows application icon.
