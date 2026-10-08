@@ -1,9 +1,9 @@
-# FrameIt M1 Manual Test Checklist (Windows 10/11)
+# FrameIt Snap M1 Manual Test Checklist (Windows 10/11)
 
 Run these checks on a real Windows PC (x64), ideally with two monitors using different DPI scaling levels.
 
 1. **Tray startup**
-   - Launch FrameIt.
+   - Launch FrameIt Snap.
    - Confirm only one instance starts.
    - Confirm tray icon appears and right-click menu shows:
      Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, Exit.
@@ -28,7 +28,7 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
    - Region, active window, and fixed-size still capture only the area you chose, not every monitor.
 
 5. **Active window hotkey**
-   - Focus a non-FrameIt window.
+   - Focus a non-FrameIt Snap window.
    - Press `Alt+PrintScreen`.
    - Confirm only the active window area is captured.
 
@@ -46,7 +46,7 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
 8. **Settings persistence + hotkey conflict messaging**
    - Open Settings from tray.
    - Change folder, fixed size, and one hotkey; save.
-   - Restart app; confirm settings persist in `%APPDATA%\FrameIt\settings.json`.
+   - Restart app; confirm settings persist in `%APPDATA%\FrameItSnap\settings.json`.
    - If PrintScreen registration fails, confirm tray notification explains Windows setting to disable Snipping Tool takeover.
 
 9. **Multi-monitor + mixed DPI pixel correctness**
@@ -61,6 +61,6 @@ Run these checks on a real Windows PC (x64), ideally with two monitors using dif
     - Confirm `Esc` closes viewer window.
     - Enable timing logs in Settings.
     - Relaunch app and perform capture.
-    - Inspect `%APPDATA%\FrameIt\timings.log` and verify startup and capture timing entries are recorded for measurement of:
+    - Inspect `%APPDATA%\FrameItSnap\timings.log` and verify startup and capture timing entries are recorded for measurement of:
       - cold start target < 2 s
       - capture-to-viewer target < 1 s

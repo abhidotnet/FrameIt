@@ -1,9 +1,9 @@
-# FrameIt M2 Manual Test Checklist (Windows 10/11)
+# FrameIt Snap M2 Manual Test Checklist (Windows 10/11)
 
 Run these on a real Windows x64 PC after `./build.ps1`. Use a capture that includes both sharp UI edges and a photo-like area so blur, pixelate, and JPEG quality are easy to judge.
 
 1. **Editor opens from capture**
-   - Launch FrameIt and confirm the tray menu still has Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, and Exit.
+   - Launch FrameIt Snap and confirm the tray menu still has Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, and Exit.
    - With auto-save left on (the default), take a region capture.
    - Confirm the editor opens, the status bar shows that PNG path, and a new `capture-YYYYMMDD-HHmmss.png` appears in the capture folder.
    - Paste into Paint and confirm the clipboard received the original capture.
@@ -11,20 +11,20 @@ Run these on a real Windows x64 PC after `./build.ps1`. Use a capture that inclu
 
 2. **Open captures folder**
    - Choose **Open captures folder** from the tray.
-   - Confirm Explorer opens `%USERPROFILE%\Pictures\FrameIt` (or the folder currently set in Settings).
+   - Confirm Explorer opens `%USERPROFILE%\Pictures\FrameItSnap` (or the folder currently set in Settings).
 
 3. **Auto-save off**
    - In Settings, turn off **Auto-save captures as PNG**, save, and capture again.
    - Confirm no new file is written.
-   - Press `Esc`. Confirm FrameIt asks before closing. Choose **No** and confirm nothing was saved.
+   - Press `Esc`. Confirm FrameIt Snap asks before closing. Choose **No** and confirm nothing was saved.
    - Capture again, press `Esc`, choose **Cancel**, and confirm the editor stays open.
 
 4. **Save and Save As**
    - On an auto-saved capture, make a visible edit (draw an arrow) and press `Ctrl+S`.
    - Reopen that PNG in Paint and confirm the arrow is baked into the pixels.
    - Press `Ctrl+Shift+S`, choose a different folder, and save a JPEG.
-   - Confirm the JPEG quality box defaults to 90, the file opens, and `%APPDATA%\FrameIt\settings.json` now has that folder in `LastSaveFolder`.
-   - Restart FrameIt, Save As again, and confirm the dialog starts in that same folder.
+   - Confirm the JPEG quality box defaults to 90, the file opens, and `%APPDATA%\FrameItSnap\settings.json` now has that folder in `LastSaveFolder`.
+   - Restart FrameIt Snap, Save As again, and confirm the dialog starts in that same folder.
    - Set JPEG quality to 40, save another JPEG, and confirm it looks more compressed than the quality-90 file.
    - On a capture that was not auto-saved, press `Ctrl+S` and confirm it opens Save As instead of failing.
 
@@ -63,5 +63,5 @@ Run these on a real Windows x64 PC after `./build.ps1`. Use a capture that inclu
 
 10. **Unsaved close, and a second capture**
     - Make an edit and press `Esc`. Confirm Yes saves, No discards, and Cancel leaves the editor open.
-    - With unsaved work on screen, start another capture from the tray. Confirm FrameIt asks about the current image before the new editor replaces it.
+    - With unsaved work on screen, start another capture from the tray. Confirm FrameIt Snap asks about the current image before the new editor replaces it.
     - Choose Cancel and confirm the original editor and its edits are still there.

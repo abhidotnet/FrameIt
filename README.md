@@ -1,8 +1,8 @@
-# FrameIt
+# FrameIt Snap
 
-FrameIt is a PicPick-style Windows screen capture utility. It runs from the system tray, captures from the keyboard, and opens the shot in an editor for crop, annotation, redaction, and save.
+FrameIt Snap is a PicPick-style Windows screen capture utility. It runs from the system tray, captures from the keyboard, and opens the shot in an editor for crop, annotation, redaction, and save.
 
-> Milestones covered here: **M1 (Capture)**, **M2 (Editor)**, and **M3 (Delay and share)**.
+> Milestones covered here: **M1 (Capture)**, **M2 (Editor)**, **M3 (Delay and share)**, and **M4 (Tabs and session recovery)**.
 
 ## Tech stack
 
@@ -16,9 +16,79 @@ No external NuGet packages. `nuget.config` only references nuget.org, and `build
 ## Prerequisites
 
 - Windows 10/11 x64
-- .NET 8 SDK
+- To **run** a downloaded build: [.NET 8 Desktop Runtime, Windows x64](https://dotnet.microsoft.com/en-us/download/dotnet/8.0). On that page choose **Desktop Runtime**, not the SDK, and the **x64** installer. The ASP.NET runtime and the SDK alone are not enough.
+- To **build** from source: .NET 8 SDK
 
-> This repository is built from a Linux environment (`dotnet build` / `dotnet publish` with `EnableWindowsTargeting=true`). Capture, hotkeys, DPI, the editor, file dialogs, the capture countdown, Credential Manager, SMTP, and FTP still have to be validated on a real Windows PC. See `docs/M3-TEST-CHECKLIST.md`.
+> This repository is built from a Linux environment (`dotnet build` / `dotnet publish` with `EnableWindowsTargeting=true`). Capture, hotkeys, DPI, the editor, tabs, session restore, file dialogs, the capture countdown, Credential Manager, SMTP, and FTP still have to be validated on a real Windows PC. See `docs/M4-TEST-CHECKLIST.md`.
+
+## Download FrameIt Snap
+
+Both downloads are **framework-dependent** win-x64 builds. They are smaller than a self-contained app and do not include the .NET runtime. If the runtime is missing, Windows reports that when you start `FrameItSnap.exe`. Install the [.NET 8 Desktop Runtime for Windows x64](https://dotnet.microsoft.com/en-us/download/dotnet/8.0), then start FrameIt Snap again.
+
+The tracked files are under `dist/`. `artifacts/` is local build scratch and is not the download. The self-contained publish stays in `artifacts/portable/` and is not committed. This commit removes the old `FrameIt.exe` set and `FrameIt-Beta-Setup.exe` so unsigned replacements are not checked in. `dist/portable/Microsoft.Windows.SDK.NET.dll`, `dist/portable/WinRT.Runtime.dll`, and `dist/FrameIt-Test-Certificate.cer` stay. The signed `FrameItSnap.exe`, `FrameItSnap.dll`, and `FrameItSnap-Beta-Setup.exe` are produced on Windows (see the signing command below) and then committed from that PC.
+
+### Installer
+
+`dist/installer/FrameItSnap-Beta-Setup.exe` is the FrameIt Snap setup program. It installs the same files as `dist/portable/`.
+
+Run `FrameItSnap-Beta-Setup.exe`. It installs per user, adds a Start menu shortcut named **FrameIt Snap**, and can add a desktop shortcut. Shortcuts use the icon embedded in `FrameItSnap.exe` (the teal and gold frame). The installer file itself uses `src/FrameItSnap/Assets/FrameItSnap.ico`. If the .NET 8 Desktop Runtime is not installed, the wizard offers to open the download page and still lets you finish setup.
+
+The old FrameIt Beta install is upgraded in place (the installer AppId is unchanged). Old `FrameIt.exe`, `FrameIt.dll`, `FrameIt.deps.json`, and `FrameIt.runtimeconfig.json` are removed from the install folder.
+
+Uninstall **FrameIt Snap** from Windows Settings → Apps.
+
+To rebuild the Setup exe, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and from the repository root run:
+
+```powershell
+./build.ps1 -Installer
+```
+
+That compiles `installer/FrameItSnap-Beta.iss` from `artifacts/framework-dependent/` into `dist/installer/FrameItSnap-Beta-Setup.exe`. It does not change `dist/portable/`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.7.3 and then test-signed (see below). Rebuilding replaces that signed setup exe with an unsigned one, so sign it again before you commit or share it.
+
+### Portable build
+
+`dist/portable/` is a framework-dependent folder you can copy anywhere (a USB stick, `Downloads`, a tools directory). Keep every file in that folder together. `FrameItSnap.exe` needs the DLLs beside it.
+
+1. Install the [.NET 8 Desktop Runtime (Windows x64)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) if it is not already installed.
+2. Copy the whole `dist/portable/` folder.
+3. Run `FrameItSnap.exe`.
+
+There is no installer and no Start menu shortcut. Exit from the tray icon. Settings go to `%APPDATA%\FrameItSnap`, and session recovery goes to `%LOCALAPPDATA%\FrameItSnap\sessions`. The first time FrameIt Snap runs, if those folders are missing and the old `%APPDATA%\FrameIt` or `%LOCALAPPDATA%\FrameIt` folders exist, it copies them and leaves the old folders in place. The default Pictures folder moves from `Pictures\FrameIt` to `Pictures\FrameItSnap` only when Settings still has that default path. A folder you chose yourself is left alone. Saved SMTP and FTP passwords stored as `FrameIt:...` are copied to `FrameItSnap:...` the first time they are read. The old `FrameIt` Run registry value is removed so Windows does not start the previous exe.
+
+### Test signing (beta)
+
+The beta binaries (`dist/portable/FrameItSnap.exe`, `dist/portable/FrameItSnap.dll`, and `dist/installer/FrameItSnap-Beta-Setup.exe`) are signed with a self-signed test certificate, `dist/FrameIt-Test-Certificate.cer` (subject `CN=Abhijit Shrikhande (FrameIt Test)`). The Microsoft DLLs keep their own Microsoft signatures.
+
+On a test PC:
+
+1. Before extracting, unblock the downloaded zip (or the files) so Windows drops the "downloaded from the internet" mark:
+
+   ```powershell
+   Unblock-File -Path .\FrameItSnap.zip
+   # or, for files already extracted:
+   Get-ChildItem -Recurse | Unblock-File
+   ```
+
+2. Trust the test certificate by running these in an **admin** PowerShell from the repository root:
+
+   ```powershell
+   Import-Certificate -FilePath .\dist\FrameIt-Test-Certificate.cer -CertStoreLocation Cert:\LocalMachine\Root
+   Import-Certificate -FilePath .\dist\FrameIt-Test-Certificate.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher
+   ```
+
+3. Check a file with `Get-AuthenticodeSignature .\dist\installer\FrameItSnap-Beta-Setup.exe`. It should report `Valid`.
+
+This only helps on PCs where you import the certificate yourself. It does **not** remove SmartScreen or "unknown publisher" warnings for anyone else. That needs a publicly trusted code-signing certificate, such as Azure Trusted Signing.
+
+`./build.ps1`, `./build.ps1 -Msix`, and `./build.ps1 -MsixSideload` publish only under `artifacts/` and leave `dist/` alone. On the Windows PC that has the test certificate in the certificate store, one command signs the new binaries and refreshes `dist/`:
+
+```powershell
+./build.ps1 -SignThumbprint EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 -UpdateDist -Installer
+```
+
+That signs `FrameItSnap.exe` and `FrameItSnap.dll` before they are copied into `dist/portable/`, packs the installer from those signed files, then signs `dist/installer/FrameItSnap-Beta-Setup.exe`. Add `-MsixSideload` to the same command to also sign the binaries inside the sideload package before `makeappx` packs it. The script uses `signtool` from the Windows SDK (`sign /sha1 <thumb> /fd SHA256 /tr http://timestamp.digicert.com /td SHA256`). It does not take a `.pfx` or a private key file.
+
+`./build.ps1 -UpdateDist` without `-SignThumbprint` still copies into `dist/portable/` and warns that the new files are unsigned.
 
 ## Build
 
@@ -30,9 +100,59 @@ Run from the repository root:
 
 The script:
 
-1. Restores and builds `FrameIt.sln` in Release.
-2. Publishes a **self-contained single-file win-x64** build to `artifacts/portable/`.
+1. Restores and builds `FrameItSnap.sln` in Release.
+2. Publishes a **self-contained single-file win-x64** build to `artifacts/portable/` (local scratch, not committed).
 3. Publishes a **framework-dependent win-x64** build to `artifacts/framework-dependent/`.
+4. Does not write to `dist/`. The signed beta files stay as they are.
+5. With `-UpdateDist`, copies that framework-dependent app, without PDB files, to `dist/portable/` and warns that the replaced files need re-signing.
+6. With `-Installer` on Windows, and Inno Setup 6 installed, compiles `dist/installer/FrameItSnap-Beta-Setup.exe` from `artifacts/framework-dependent/`. It does not change `dist/portable/`, and it warns that the new setup exe needs re-signing.
+7. With `-Msix` or `-MsixSideload` on Windows, and the Windows SDK installed, builds a self-contained package under `artifacts/msix/`. That path is not committed. See **Microsoft Store (MSIX)** below. Those switches do not write to `dist/`.
+
+## Microsoft Store (MSIX)
+
+The Store package is a full-trust desktop app. Identity values and the package version live in one file, `packaging/msix/Package.props`. The version there (`0.5.0.0`) is also the assembly version. The user-facing version is 0.5.0. Logos are generated from `src/FrameItSnap/Assets/FrameIt-icon-source.png` by `packaging/msix/generate-logos.py` and saved under `packaging/msix/Assets/`.
+
+- Identity Name: `FrameItSnap.Placeholder` (still a placeholder; replace it with Package/Identity/Name from the product's Product identity page)
+- Publisher: `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A`
+- PublisherDisplayName: `Ednahkirhs`
+- Display name: `FrameIt Snap`
+
+The Store build (`-Msix`) uses that publisher. `-MsixSideload` overrides Publisher to `CN=Abhijit Shrikhande (FrameIt Test)` so it matches the test certificate.
+
+### Partner Center
+
+1. The reserved Store name is **FrameIt Snap**.
+2. When the per-app Package/Identity/Name is available, paste it into `FrameItSnapIdentityName` in `packaging/msix/Package.props`. Publisher and PublisherDisplayName are already the Partner Center values.
+3. On a Windows x64 PC with the .NET 8 SDK and the Windows 10/11 SDK (`makeappx.exe`), from the repository root:
+
+   ```powershell
+   ./build.ps1 -Msix
+   ```
+
+   This publishes a self-contained win-x64 folder (the .NET 8 runtime is inside the package, not a single file) and packs `artifacts/msix/FrameItSnap_0.5.0.0_x64.msix`. `artifacts/` stays out of git. `-Msix` and `-MsixSideload` do not modify `dist/`.
+4. If `makeappx.exe` is not on `PATH`, the script looks under `Windows Kits\10\bin\*\x64`. If it is still missing, the script stops and names the SDK to install.
+5. Run the Windows App Certification Kit against that `.msix`.
+6. In Partner Center, create a submission and upload the `.msix`.
+
+Store users do not install the .NET runtime separately. The portable and Inno builds still need the .NET 8 Desktop Runtime.
+
+### Sideload with the test certificate
+
+`./build.ps1 -MsixSideload` uses Publisher `CN=Abhijit Shrikhande (FrameIt Test)`, the subject of `dist/FrameIt-Test-Certificate.cer`, and writes `artifacts/msix/FrameItSnap_0.5.0.0_x64_sideload.msix`. `-MsixPublisher "CN=..."` overrides the publisher for either switch.
+
+The private key is only in the owner's Windows certificate store. This environment does not sign the package. On that PC:
+
+```powershell
+signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 .\artifacts\msix\FrameItSnap_0.5.0.0_x64_sideload.msix
+```
+
+Trust `dist/FrameIt-Test-Certificate.cer` (see Test signing above) before installing the sideload package. Double-click the `.msix` or run `Add-AppxPackage`.
+
+### What changes inside the package
+
+`%APPDATA%\FrameItSnap\settings.json` and `%LOCALAPPDATA%\FrameItSnap\sessions` are redirected into the package's virtual file system. Uninstalling the MSIX removes that copy. The capture folder is still the real Pictures folder (`%USERPROFILE%\Pictures\FrameItSnap`), not a virtualized one. The package declares `picturesLibrary` and `runFullTrust`, so the tray, global hotkeys, and Credential Manager (SMTP and FTP secrets) behave as they do in the unpackaged app.
+
+**Start FrameIt Snap when Windows starts** is in Settings → Capture. The package manifest registers startup task `FrameItSnapStartup` with `Enabled="false"`, so it stays off until that box is checked. The portable and Inno builds leave the box disabled and do not register a startup task.
 
 ## Hotkeys (default)
 
@@ -48,21 +168,23 @@ Editor shortcuts, after a capture:
 - `Ctrl+Z` / `Ctrl+Y` → Undo / Redo
 - `Ctrl+C` → Copy the edited, flattened image
 - `Delete` → Remove the selected annotation or redaction
-- `Esc` → Cancel the in-progress draw, or close. If there are unsaved changes, FrameIt asks before closing.
+- `Ctrl+Tab` / `Ctrl+Shift+Tab` → Next / previous tab
+- `Ctrl+W` → Close the current tab. A tab with unsaved changes asks Save, Discard, or Cancel.
+- `Esc` → Cancel the in-progress draw or crop. If nothing is in progress, the editor hides and the tabs stay in the session.
 
-If hotkey registration fails (for example when Windows Snipping Tool owns PrintScreen), FrameIt shows a tray notification describing how to disable:
+If hotkey registration fails (for example when Windows Snipping Tool owns PrintScreen), FrameIt Snap shows a tray notification describing how to disable:
 
 `Use the Print screen key to open screen capture`  
 in Windows Settings → Accessibility → Keyboard.
 
 ## Settings location
 
-- `%APPDATA%\FrameIt\settings.json`
-- Timing log file (when enabled): `%APPDATA%\FrameIt\timings.log`
+- `%APPDATA%\FrameItSnap\settings.json`
+- Timing log file (when enabled): `%APPDATA%\FrameItSnap\timings.log`
 
 Default capture folder:
 
-- `%USERPROFILE%\Pictures\FrameIt`
+- `%USERPROFILE%\Pictures\FrameItSnap`
 
 Settings added in M2:
 
@@ -74,23 +196,23 @@ Settings added in M2:
 
 Settings added in M3:
 
-- `CaptureDelaySeconds` (default **0**, range 0–10). FrameIt waits this many seconds before every capture mode.
+- `CaptureDelaySeconds` (default **0**, range 0–10). FrameIt Snap waits this many seconds before every capture mode.
 - `Smtp`: `Host`, `Port` (default 587), `Security` (`None` or `StartTls`), `Username`, `FromAddress`, `DefaultToAddress`.
 - `Ftp`: `Host`, `Port` (default 21), `RemotePath` (default `/`), `Username`.
 - `Sftp`: `Host`, `Port` (default 22), `RemotePath` (default `/`), `Username`, `AuthMode` (`Password` or `PrivateKey`), `PrivateKeyPath`.
 
 `settings.json` has no password or passphrase fields. Those values are written only through the Windows Credential Manager APIs (`CredWrite` / `CredRead` / `CredDelete` in `advapi32`). Each secret is a generic credential for the current user on this computer (`CRED_PERSIST_LOCAL_MACHINE`):
 
-- `FrameIt:smtp-password`
-- `FrameIt:ftp-password`
-- `FrameIt:sftp-password`
-- `FrameIt:sftp-passphrase`
+- `FrameItSnap:smtp-password`
+- `FrameItSnap:ftp-password`
+- `FrameItSnap:sftp-password`
+- `FrameItSnap:sftp-passphrase`
 
 The private-key field is a file path. The key file itself stays where you put it.
 
 ## M1 capture
 
-- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Open captures folder, Settings, Exit.
+- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Capture delay, Open editor, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
 - Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of device pixels, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
 - Full screen captures every monitor into one image the size of the virtual screen, in device pixels. A monitor to the left of the primary (negative coordinates) stays on the left. Region, active window, and fixed-size capture stay on one area.
@@ -109,15 +231,15 @@ The post-capture window is an editor. The toolbar is a light ribbon: icon and sh
 - **Redaction.** Blur or pixelate a dragged rectangle. Strength is 1 (subtle) through 20 (heavy), default 8. Redactions can be selected, moved, and deleted until you save or copy.
 - **History.** Undo/redo covers edits, annotations, and redactions (up to 40 steps). Pixel edits keep a full image copy per step.
 
-A new capture asks to close the current editor first when that editor has unsaved work.
+A new capture opens in its own tab. It does not replace the tab you are editing.
 
 ## M3 delay and share
 
 ### Capture delay
 
-Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt closes the current editor (and after any save prompt) and before the region overlay, full-screen grab, active-window grab, or fixed-size grab.
+Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt Snap hides the editor (so the editor is not in the shot) and before the region overlay, full-screen grab, active-window grab, or fixed-size grab. Hiding does not close tabs.
 
-While the timer runs, a small countdown sits at the top of the monitor under the cursor, and the tray icon text shows the remaining seconds (`FrameIt - 3s`). The countdown does not take focus. Esc cancels the pending capture from any window. A delay of 0 starts the capture immediately, with no overlay.
+While the timer runs, a small countdown sits at the top of the monitor under the cursor, and the tray icon text shows the remaining seconds (`FrameIt Snap - 3s`). The countdown does not take focus. Esc cancels the pending capture from any window. A delay of 0 starts the capture immediately, with no overlay.
 
 The same 0–10 second choices are on the tray menu under **Capture delay**, and in Settings on the Capture tab.
 
@@ -125,17 +247,41 @@ The same 0–10 second choices are on the tray menu under **Capture delay**, and
 
 **Share** on the editor toolbar sends the flattened image (annotations and redactions included), the same pixels Save would write:
 
-- **Email** sends it through the SMTP server in Settings. The message goes to the default To address. FrameIt does not ask for a recipient or subject. If the current file is `.jpg` or `.jpeg`, the attachment is a JPEG at the current JPEG quality. Otherwise it is a PNG. The SMTP username defaults to the From address when the username box is empty. Security **STARTTLS** maps to `SmtpClient.EnableSsl` (usually port 587). Implicit TLS on port 465 is not available from the built-in client.
+- **Email** sends it through the SMTP server in Settings. The message goes to the default To address. FrameIt Snap does not ask for a recipient or subject. If the current file is `.jpg` or `.jpeg`, the attachment is a JPEG at the current JPEG quality. Otherwise it is a PNG. The SMTP username defaults to the From address when the username box is empty. Security **STARTTLS** maps to `SmtpClient.EnableSsl` (usually port 587). Implicit TLS on port 465 is not available from the built-in client.
 - **Upload (FTP)** stores that file on the configured host with the built-in `FtpWebRequest` client (passive mode, binary). The remote name matches the capture file name, or `capture-YYYYMMDD-HHmmss.png` when the image has not been saved yet. The client connects only to the host you entered.
 - **Upload (SFTP)** does not transfer a file in this build. SSH file transfer needs a library such as SSH.NET, and this milestone does not add a NuGet package. The menu explains that, FTP upload still works, and the SFTP settings plus Credential Manager secrets are saved for a later build. `ISftpUploader` is the seam for that build.
 
 X and Instagram are not part of M3.
+
+## M4 tabs and session recovery
+
+Each capture is its own tab. The tab shows a thumbnail and a short name (`Capture 1`, `Capture 2`, …) plus an orange dot while that tab has unsaved edits or a crop marquee that is not applied yet. The tooltip shows the local time and the capture source (region, window, full screen, or fixed).
+
+- Click a tab to switch. Drag a tab to reorder it. Middle-click closes it.
+- Right-click: **Close**, **Close Others**, **Close All**, **Duplicate Tab**.
+- `Ctrl+Tab` and `Ctrl+Shift+Tab` move between tabs. `Ctrl+W` closes the current tab.
+- Closing a dirty tab asks **Save**, **Discard**, or **Cancel**. Save writes the capture file (Save As if it does not have one yet). Discard drops unsaved edits. Neither deletes files that are already in your capture folder.
+- The window X button and `Esc` hide the editor. The tabs stay open. **Open editor** on the tray shows them again. **Exit** on the tray leaves the session in place for the next start.
+
+Session files are not your captures. Auto-save and Save As still write PNG or JPEG files in the capture folder or the folder you pick. Recovery files live only here:
+
+`%LOCALAPPDATA%\FrameItSnap\sessions`
+
+That folder holds `session.json` (tab order and the active tab), `session.lock` while FrameIt Snap is running, and one folder per tab with the editor image, a thumbnail, and metadata (name, time, capture source, unsaved flag, annotations, and redactions). FrameIt Snap writes the tab when the capture is taken, and again about two seconds after an edit.
+
+On startup FrameIt Snap opens those tabs again. It does not ask whether to restore. If the previous process did not exit cleanly (`session.lock` still present, or the session was left dirty), the editor shows one line: `Restored N tabs from your last session`. A normal Exit restores the same tabs with no line.
+
+FrameIt Snap keeps recovery files for **30 days or 200 MB, whichever comes first**. Files for tabs you still have open are kept. Closed tabs are removed when you close them. Anything left behind is deleted once it is older than 30 days, and sooner if the folder would pass 200 MB. **Settings → Capture → Clear session data** deletes the recovery files. It does not delete the capture folder. Tabs that are open are written again afterward.
+
+Only the active tab is fully decoded. Other tabs keep a small thumbnail until you switch to them, so a long session does not keep every screenshot and its undo stack in memory at once. FrameIt Snap renders that thumbnail when the capture is taken and again after each edit, then reuses it until the next edit. Switching away drops that tab's undo stack; the image and the annotations are what come back.
 
 ## Manual test checklists
 
 - M1: `docs/M1-TEST-CHECKLIST.md`
 - M2: `docs/M2-TEST-CHECKLIST.md`
 - M3: `docs/M3-TEST-CHECKLIST.md`
+- M4: `docs/M4-TEST-CHECKLIST.md`
+- MSIX: `docs/MSIX-TEST-CHECKLIST.md`
 
 ## Notes and limitations
 
@@ -143,6 +289,9 @@ X and Instagram are not part of M3.
 - Full screen mode is the whole virtual desktop. Gaps between monitors, if the layout is not a solid rectangle, are black. Each monitor's pixels are copied 1:1; they are not scaled to a common DPI.
 - The editor draws annotations with WPF on screen and with GDI+ when flattening. Text position matches; glyph rasterization can differ by a pixel.
 - Resize uses high-quality bicubic sampling.
-- Runtime behavior (tray, hotkeys, DPI, editor tools, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
+- The exe icon is `src/FrameItSnap/Assets/FrameItSnap.ico` (16 through 256). The tray loads that same ICO. Window title bars use `FrameIt-256.png` from the same folder. Tray and Alt+Tab appearance still need a Windows check; this environment cannot show them.
+- Runtime behavior (tray, hotkeys, DPI, editor tools, tabs, session restore after a killed process, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
+- An unapplied crop blocks tab switching until you press Enter or Esc. A new capture applies that crop on the current tab so the new shot can open.
+- Undo and redo apply to the tab you are on. Leaving the tab keeps the pixels and the annotations, and starts a fresh undo stack when you come back.
 - SMTP security in this build is STARTTLS via `System.Net.Mail.SmtpClient`. Port 465 implicit TLS is not offered.
 - SFTP upload waits on owner approval of an SSH package. The interface, settings, and credential slots are in place. FTP upload uses the BCL client.
