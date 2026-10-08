@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build MSIX logo sizes from src/FrameIt/Assets/FrameIt-icon-source.png.
+"""Build MSIX logo sizes from src/FrameItSnap/Assets/FrameIt-icon-source.png.
 
 Square tiles keep the full brand graphic. Wide tiles and the splash screen
 place that graphic on the outer wall color. Unplated taskbar icons knock out
@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "src" / "FrameIt" / "Assets" / "FrameIt-icon-source.png"
+SOURCE = ROOT / "src" / "FrameItSnap" / "Assets" / "FrameIt-icon-source.png"
 OUT = Path(__file__).resolve().parent / "Assets"
 
 SQUARE_SCALES = {

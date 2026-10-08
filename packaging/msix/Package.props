@@ -1,20 +1,20 @@
 <Project>
   <PropertyGroup>
     <!-- One place for the package version and the Store identity.
-         Version is four parts and is also the assembly version.
-         After Partner Center reserves the name, replace IdentityName, Publisher,
-         and PublisherDisplayName with the Product identity values. Leave DisplayName as FrameIt
-         unless the reserved Store listing name is different.
-         Publisher must be the certificate subject, including the CN= prefix.
-         SideloadPublisher matches dist/FrameIt-Test-Certificate.cer and is selected by build.ps1 -MsixSideload. -->
-    <Version>0.4.0.0</Version>
-    <AssemblyVersion>0.4.0.0</AssemblyVersion>
-    <FileVersion>0.4.0.0</FileVersion>
-    <InformationalVersion>0.4.0-beta</InformationalVersion>
-    <FrameItIdentityName>FrameIt.Placeholder</FrameItIdentityName>
-    <FrameItPublisher>CN=FrameIt Publisher Placeholder</FrameItPublisher>
-    <FrameItPublisherDisplayName>FrameIt Publisher Placeholder</FrameItPublisherDisplayName>
-    <FrameItDisplayName>FrameIt</FrameItDisplayName>
-    <FrameItSideloadPublisher>CN=Abhijit Shrikhande (FrameIt Test)</FrameItSideloadPublisher>
+         Version is four parts and is also the assembly version. The user-facing version is 0.5.0.
+         Identity Name is still a placeholder. Replace FrameItSnapIdentityName with the
+         Package/Identity/Name value from the product's Product identity page in Partner Center.
+         Publisher and PublisherDisplayName are the Partner Center values for the Store package.
+         SideloadPublisher must stay equal to the test certificate subject. build.ps1 -MsixSideload
+         overrides Publisher with SideloadPublisher so the package matches that cert. -->
+    <Version>0.5.0.0</Version>
+    <AssemblyVersion>0.5.0.0</AssemblyVersion>
+    <FileVersion>0.5.0.0</FileVersion>
+    <InformationalVersion>0.5.0</InformationalVersion>
+    <FrameItSnapIdentityName>FrameItSnap.Placeholder</FrameItSnapIdentityName>
+    <FrameItSnapPublisher>CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A</FrameItSnapPublisher>
+    <FrameItSnapPublisherDisplayName>Ednahkirhs</FrameItSnapPublisherDisplayName>
+    <FrameItSnapDisplayName>FrameIt Snap</FrameItSnapDisplayName>
+    <FrameItSnapSideloadPublisher>CN=Abhijit Shrikhande (FrameIt Test)</FrameItSnapSideloadPublisher>
   </PropertyGroup>
 </Project>

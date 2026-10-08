@@ -1,4 +1,4 @@
-using FrameIt.Services;
+using FrameItSnap.Services;
 
 var now = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
 var live = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "live" };

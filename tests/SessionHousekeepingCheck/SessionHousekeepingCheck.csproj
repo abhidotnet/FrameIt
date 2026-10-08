@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\src\FrameIt\Services\SessionHousekeeping.cs" Link="SessionHousekeeping.cs" />
+    <Compile Include="..\..\src\FrameItSnap\Services\SessionHousekeeping.cs" Link="SessionHousekeeping.cs" />
   </ItemGroup>
 </Project>

@@ -3,15 +3,16 @@ param(
     [switch]$Msix,
     [switch]$MsixSideload,
     [string]$MsixPublisher = "",
-    [switch]$UpdateDist
+    [switch]$UpdateDist,
+    [string]$SignThumbprint = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$solution = Join-Path $root "FrameIt.sln"
-$project = Join-Path $root "src/FrameIt/FrameIt.csproj"
-$iss = Join-Path $root "installer/FrameIt-Beta.iss"
+$solution = Join-Path $root "FrameItSnap.sln"
+$project = Join-Path $root "src/FrameItSnap/FrameItSnap.csproj"
+$iss = Join-Path $root "installer/FrameItSnap-Beta.iss"
 
 $portableOut = Join-Path $root "artifacts/portable"
 $frameworkOut = Join-Path $root "artifacts/framework-dependent"
@@ -83,11 +84,11 @@ function Read-FrameItPackageProps {
 
     return [pscustomobject]@{
         Version = Read-Prop "Version"
-        IdentityName = Read-Prop "FrameItIdentityName"
-        Publisher = Read-Prop "FrameItPublisher"
-        PublisherDisplayName = Read-Prop "FrameItPublisherDisplayName"
-        DisplayName = Read-Prop "FrameItDisplayName"
-        SideloadPublisher = Read-Prop "FrameItSideloadPublisher"
+        IdentityName = Read-Prop "FrameItSnapIdentityName"
+        Publisher = Read-Prop "FrameItSnapPublisher"
+        PublisherDisplayName = Read-Prop "FrameItSnapPublisherDisplayName"
+        DisplayName = Read-Prop "FrameItSnapDisplayName"
+        SideloadPublisher = Read-Prop "FrameItSnapSideloadPublisher"
     }
 }
 
@@ -132,6 +133,64 @@ function Find-MakeAppx {
     return $null
 }
 
+function Find-SignTool {
+    $command = Get-Command "signtool.exe" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $roots = New-Object System.Collections.Generic.List[string]
+    foreach ($rootPath in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if ([string]::IsNullOrWhiteSpace($rootPath)) {
+            continue
+        }
+
+        $kit = Join-Path $rootPath "Windows Kits\10\bin"
+        if (Test-Path -LiteralPath $kit) {
+            $roots.Add($kit)
+        }
+    }
+
+    $found = @()
+    foreach ($kit in $roots) {
+        $found += Get-ChildItem -Path $kit -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "[\\/]x64[\\/]signtool.exe$" }
+    }
+
+    $best = $found | Sort-Object FullName -Descending | Select-Object -First 1
+    if ($best) {
+        return $best.FullName
+    }
+
+    return $null
+}
+
+function Invoke-AuthenticodeSign {
+    param(
+        [string[]]$Paths
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SignThumbprint)) {
+        return
+    }
+
+    $signTool = Find-SignTool
+    if (-not $signTool) {
+        throw "signtool.exe was not found. Install the Windows SDK, then rerun with -SignThumbprint. No private key file is used; the certificate must already be in the Windows certificate store."
+    }
+
+    foreach ($path in $Paths) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "Cannot sign a missing file: $path"
+        }
+
+        & $signTool sign /sha1 $SignThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $path
+        if ($LASTEXITCODE -ne 0) {
+            throw "signtool.exe failed for $path (exit $LASTEXITCODE)."
+        }
+    }
+}
+
 function New-MsixPackage {
     param(
         [string]$PublisherOverride,
@@ -150,7 +209,7 @@ function New-MsixPackage {
 
     $makeAppx = Find-MakeAppx
     if (-not $makeAppx) {
-        throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameIt_<version>_x64.msix and does not write to dist/."
+        throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameItSnap_<version>_x64.msix and does not write to dist/."
     }
 
     $staging = Join-Path $root "artifacts/msix/publish"
@@ -168,7 +227,7 @@ function New-MsixPackage {
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
     # A normal self-contained folder, not a single file. MSIX installs the folder as the package root
-    # and the manifest points at FrameIt.exe. The .NET 8 runtime is inside the package.
+    # and the manifest points at FrameItSnap.exe. The .NET 8 runtime is inside the package.
     dotnet publish $project `
         -c Release `
         -r win-x64 `
@@ -207,10 +266,17 @@ function New-MsixPackage {
         $suffix = "_sideload"
     }
 
-    $packageName = "FrameIt_$($props.Version)_x64$suffix.msix"
+    $packageName = "FrameItSnap_$($props.Version)_x64$suffix.msix"
     $packagePath = Join-Path $outputDir $packageName
     if (Test-Path -LiteralPath $packagePath) {
         Remove-Item -LiteralPath $packagePath -Force
+    }
+
+    if ($suffix -eq "_sideload") {
+        Invoke-AuthenticodeSign -Paths @(
+            (Join-Path $layout "FrameItSnap.exe"),
+            (Join-Path $layout "FrameItSnap.dll")
+        )
     }
 
     & $makeAppx pack /d $layout /p $packagePath /o
@@ -230,8 +296,12 @@ Push-Location $root
 try {
     if ($Msix -or $MsixSideload -or -not [string]::IsNullOrWhiteSpace($MsixPublisher)) {
         if (-not (Find-MakeAppx)) {
-            throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameIt_<version>_x64.msix and does not write to dist/."
+            throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameItSnap_<version>_x64.msix and does not write to dist/."
         }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($SignThumbprint) -and -not (Find-SignTool)) {
+        throw "signtool.exe was not found. Install the Windows SDK, then rerun with -SignThumbprint. The certificate must already be in the Windows certificate store. This script does not accept a .pfx or private key file."
     }
 
     dotnet restore $solution /p:EnableWindowsTargeting=true
@@ -258,11 +328,16 @@ try {
         /p:EnableWindowsTargeting=true `
         -o $frameworkOut
 
+    Invoke-AuthenticodeSign -Paths @(
+        (Join-Path $frameworkOut "FrameItSnap.exe"),
+        (Join-Path $frameworkOut "FrameItSnap.dll")
+    )
+
     if ($UpdateDist) {
         Write-Host ""
-        Write-Host "WARNING: -UpdateDist replaces the test-signed files in dist/portable."
-        Write-Host "FrameIt.exe, FrameIt.dll, and FrameIt.deps.json will no longer match dist/FrameIt-Test-Certificate.cer."
-        Write-Host "Sign them again before you commit or share dist/."
+        Write-Host "WARNING: -UpdateDist replaces files in dist/portable."
+        Write-Host "If -SignThumbprint was not passed, FrameItSnap.exe and FrameItSnap.dll are unsigned and must be signed before you commit or share them."
+        Write-Host "dist/FrameIt-Test-Certificate.cer is not modified."
         Write-Host ""
         Sync-DistPortable -Source $frameworkOut -Destination $distPortable
     }
@@ -270,18 +345,20 @@ try {
     if ($Installer) {
         $iscc = Find-Iscc
         if (-not $iscc) {
-            throw "Inno Setup 6 compiler (ISCC.exe) was not found. Install Inno Setup 6, then run ./build.ps1 -Installer. That writes dist/installer/FrameIt-Beta-Setup.exe from installer/FrameIt-Beta.iss. It does not modify dist/portable."
+            throw "Inno Setup 6 compiler (ISCC.exe) was not found. Install Inno Setup 6, then run ./build.ps1 -Installer. That writes dist/installer/FrameItSnap-Beta-Setup.exe from installer/FrameItSnap-Beta.iss. It does not modify dist/portable."
         }
 
         Write-Host ""
-        Write-Host "WARNING: -Installer replaces dist/installer/FrameIt-Beta-Setup.exe."
-        Write-Host "The setup exe in git is test-signed. The new file is unsigned and must be signed again before you commit or share it."
+        Write-Host "WARNING: -Installer replaces dist/installer/FrameItSnap-Beta-Setup.exe."
+        Write-Host "If -SignThumbprint was not passed, the new setup exe is unsigned and must be signed before you commit or share it."
         Write-Host "dist/portable is left as it is."
         Write-Host ""
         & $iscc $iss
         if ($LASTEXITCODE -ne 0) {
             throw "ISCC.exe exited with code $LASTEXITCODE."
         }
+
+        Invoke-AuthenticodeSign -Paths @((Join-Path $root "dist/installer/FrameItSnap-Beta-Setup.exe"))
     }
 
     if ($Msix -or $MsixSideload -or -not [string]::IsNullOrWhiteSpace($MsixPublisher)) {
