@@ -41,6 +41,8 @@
 
                         <CheckBox x:Name="TimingLogsCheckBox" Content="Enable local timing logs (no image data)" Margin="0,0,0,8" />
                         <CheckBox x:Name="AutoSaveCheckBox" Content="Auto-save captures as PNG (capture-YYYYMMDD-HHmmss.png)" Margin="0,0,0,8" />
+                        <CheckBox x:Name="StartupCheckBox" Content="Start FrameIt when Windows starts" Margin="0,8,0,4" />
+                        <TextBlock x:Name="StartupHint" TextWrapping="Wrap" Foreground="#444444" Margin="0,0,0,12" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                             <TextBlock VerticalAlignment="Center" Text="JPEG quality (1–100)" Margin="0,0,8,0" />

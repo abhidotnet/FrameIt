@@ -1,5 +1,8 @@
 param(
-    [switch]$Installer
+    [switch]$Installer,
+    [switch]$Msix,
+    [switch]$MsixSideload,
+    [string]$MsixPublisher = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,8 +67,172 @@ function Find-Iscc {
     return $null
 }
 
+function Read-FrameItPackageProps {
+    $path = Join-Path $root "packaging/msix/Package.props"
+    $text = Get-Content -Raw -LiteralPath $path
+
+    function Read-Prop([string]$name) {
+        $match = [regex]::Match($text, "<$name>([^<]+)</$name>")
+        if (-not $match.Success) {
+            throw "packaging/msix/Package.props is missing <$name>."
+        }
+
+        return $match.Groups[1].Value.Trim()
+    }
+
+    return [pscustomobject]@{
+        Version = Read-Prop "Version"
+        IdentityName = Read-Prop "FrameItIdentityName"
+        Publisher = Read-Prop "FrameItPublisher"
+        PublisherDisplayName = Read-Prop "FrameItPublisherDisplayName"
+        DisplayName = Read-Prop "FrameItDisplayName"
+        SideloadPublisher = Read-Prop "FrameItSideloadPublisher"
+    }
+}
+
+function Convert-ToXmlAttribute([string]$value) {
+    return $value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace('"', "&quot;")
+}
+
+function Find-MakeAppx {
+    $command = Get-Command "makeappx.exe" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $command = Get-Command "MakeAppx.exe" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $roots = New-Object System.Collections.Generic.List[string]
+    foreach ($rootPath in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if ([string]::IsNullOrWhiteSpace($rootPath)) {
+            continue
+        }
+
+        $kit = Join-Path $rootPath "Windows Kits\10\bin"
+        if (Test-Path -LiteralPath $kit) {
+            $roots.Add($kit)
+        }
+    }
+
+    $found = @()
+    foreach ($kit in $roots) {
+        $found += Get-ChildItem -Path $kit -Recurse -Filter "makeappx.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "[\\/]x64[\\/]makeappx.exe$" }
+    }
+
+    $best = $found | Sort-Object FullName -Descending | Select-Object -First 1
+    if ($best) {
+        return $best.FullName
+    }
+
+    return $null
+}
+
+function New-MsixPackage {
+    param(
+        [string]$PublisherOverride,
+        [switch]$Sideload
+    )
+
+    $props = Read-FrameItPackageProps
+    $publisher = $props.Publisher
+    if ($Sideload) {
+        $publisher = $props.SideloadPublisher
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($PublisherOverride)) {
+        $publisher = $PublisherOverride.Trim()
+    }
+
+    $makeAppx = Find-MakeAppx
+    if (-not $makeAppx) {
+        throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameIt_<version>_x64.msix and does not write to dist/."
+    }
+
+    $staging = Join-Path $root "artifacts/msix/publish"
+    $layout = Join-Path $root "artifacts/msix/layout"
+    $outputDir = Join-Path $root "artifacts/msix"
+    if (Test-Path $staging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force
+    }
+
+    if (Test-Path $layout) {
+        Remove-Item -LiteralPath $layout -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path $staging -Force | Out-Null
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+
+    # A normal self-contained folder, not a single file. MSIX installs the folder as the package root
+    # and the manifest points at FrameIt.exe. The .NET 8 runtime is inside the package.
+    dotnet publish $project `
+        -c Release `
+        -r win-x64 `
+        --self-contained true `
+        /p:PublishSingleFile=false `
+        /p:PublishReadyToRun=false `
+        /p:Version=$($props.Version) `
+        /p:AssemblyVersion=$($props.Version) `
+        /p:FileVersion=$($props.Version) `
+        /p:EnableWindowsTargeting=true `
+        -o $staging
+
+    New-Item -ItemType Directory -Path $layout -Force | Out-Null
+    Copy-Item -Path (Join-Path $staging "*") -Destination $layout -Recurse -Force
+    Get-ChildItem -Path $layout -Filter "*.pdb" -Recurse -File | Remove-Item -Force
+
+    $assetDest = Join-Path $layout "Assets"
+    New-Item -ItemType Directory -Path $assetDest -Force | Out-Null
+    Copy-Item -Path (Join-Path $root "packaging/msix/Assets/*") -Destination $assetDest -Force
+
+    $manifest = Get-Content -Raw -LiteralPath (Join-Path $root "packaging/msix/AppxManifest.xml")
+    $manifest = $manifest.Replace("__IDENTITY_NAME__", (Convert-ToXmlAttribute $props.IdentityName))
+    $manifest = $manifest.Replace("__PUBLISHER__", (Convert-ToXmlAttribute $publisher))
+    $manifest = $manifest.Replace("__PUBLISHER_DISPLAY_NAME__", (Convert-ToXmlAttribute $props.PublisherDisplayName))
+    $manifest = $manifest.Replace("__DISPLAY_NAME__", (Convert-ToXmlAttribute $props.DisplayName))
+    $manifest = $manifest.Replace("__VERSION__", (Convert-ToXmlAttribute $props.Version))
+    if ($manifest.Contains("__")) {
+        throw "AppxManifest.xml still has unfilled tokens."
+    }
+
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText((Join-Path $layout "AppxManifest.xml"), $manifest.TrimStart([char]0xFEFF), $utf8)
+
+    $suffix = ""
+    if ($Sideload -or $publisher -eq $props.SideloadPublisher) {
+        $suffix = "_sideload"
+    }
+
+    $packageName = "FrameIt_$($props.Version)_x64$suffix.msix"
+    $packagePath = Join-Path $outputDir $packageName
+    if (Test-Path -LiteralPath $packagePath) {
+        Remove-Item -LiteralPath $packagePath -Force
+    }
+
+    & $makeAppx pack /d $layout /p $packagePath /o
+    if ($LASTEXITCODE -ne 0) {
+        throw "makeappx.exe exited with code $LASTEXITCODE."
+    }
+
+    Write-Host "MSIX: $packagePath"
+    Write-Host "Publisher: $publisher"
+    if ($suffix -eq "_sideload") {
+        Write-Host "Sign on Windows with the test certificate (private key stays in the cert store):"
+        Write-Host "signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `"$packagePath`""
+    }
+}
+
 Push-Location $root
 try {
+    if ($Msix -or $MsixSideload -or -not [string]::IsNullOrWhiteSpace($MsixPublisher)) {
+        if (-not (Find-MakeAppx)) {
+            throw "Windows SDK MakeAppx (makeappx.exe) was not found. Install the Windows 10 SDK or Windows 11 SDK, then run ./build.ps1 -Msix. That writes artifacts/msix/FrameIt_<version>_x64.msix and does not write to dist/."
+        }
+    }
+
     dotnet restore $solution /p:EnableWindowsTargeting=true
     dotnet build $solution -c Release /p:EnableWindowsTargeting=true
 
@@ -102,6 +269,10 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw "ISCC.exe exited with code $LASTEXITCODE."
         }
+    }
+
+    if ($Msix -or $MsixSideload -or -not [string]::IsNullOrWhiteSpace($MsixPublisher)) {
+        New-MsixPackage -PublisherOverride $MsixPublisher -Sideload:$MsixSideload
     }
 }
 finally {

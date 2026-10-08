@@ -93,6 +93,53 @@ The script:
 3. Publishes a **framework-dependent win-x64** build to `artifacts/framework-dependent/`.
 4. Copies that framework-dependent app, without PDB files, to `dist/portable/`.
 5. With `-Installer` on Windows, and Inno Setup 6 installed, compiles `dist/installer/FrameIt-Beta-Setup.exe`.
+6. With `-Msix` on Windows, and the Windows SDK installed, builds a self-contained package under `artifacts/msix/`. That path is not committed. See **Microsoft Store (MSIX)** below. `-Msix` does not write to `dist/`.
+
+## Microsoft Store (MSIX)
+
+The Store package is a full-trust desktop app. Identity values and the package version live in one file, `packaging/msix/Package.props`. The version there (`0.4.0.0`) is also the assembly version. Logos are generated from `src/FrameIt/Assets/FrameIt-icon-source.png` by `packaging/msix/generate-logos.py` and saved under `packaging/msix/Assets/`.
+
+Until the name is reserved, the identity is a placeholder:
+
+- Identity Name: `FrameIt.Placeholder`
+- Publisher: `CN=FrameIt Publisher Placeholder`
+- PublisherDisplayName: `FrameIt Publisher Placeholder`
+- Display name: `FrameIt`
+
+### Partner Center
+
+1. In Partner Center, reserve the app name **FrameIt**.
+2. Open the product and copy **Identity name**, **Publisher**, and **Publisher display name** from Product identity. Publisher includes the `CN=` prefix. Paste those three into `packaging/msix/Package.props` (`FrameItIdentityName`, `FrameItPublisher`, `FrameItPublisherDisplayName`). Leave `FrameItDisplayName` as `FrameIt` unless the reserved listing name is different.
+3. On a Windows x64 PC with the .NET 8 SDK and the Windows 10/11 SDK (`makeappx.exe`), from the repository root:
+
+   ```powershell
+   ./build.ps1 -Msix
+   ```
+
+   This publishes a self-contained win-x64 folder (the .NET 8 runtime is inside the package, not a single file) and packs `artifacts/msix/FrameIt_0.4.0.0_x64.msix`. `artifacts/` stays out of git. This switch does not modify `dist/`.
+4. If `makeappx.exe` is not on `PATH`, the script looks under `Windows Kits\10\bin\*\x64`. If it is still missing, the script stops and names the SDK to install.
+5. Run the Windows App Certification Kit against that `.msix`.
+6. In Partner Center, create a submission and upload the `.msix`.
+
+Store users do not install the .NET runtime separately. The portable and Inno builds still need the .NET 8 Desktop Runtime.
+
+### Sideload with the test certificate
+
+`./build.ps1 -MsixSideload` uses Publisher `CN=Abhijit Shrikhande (FrameIt Test)`, the subject of `dist/FrameIt-Test-Certificate.cer`, and writes `artifacts/msix/FrameIt_0.4.0.0_x64_sideload.msix`. `-MsixPublisher "CN=..."` overrides the publisher for either switch.
+
+The private key is only in the owner's Windows certificate store. This environment does not sign the package. On that PC:
+
+```powershell
+signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 .\artifacts\msix\FrameIt_0.4.0.0_x64_sideload.msix
+```
+
+Trust `dist/FrameIt-Test-Certificate.cer` (see Test signing above) before installing the sideload package. Double-click the `.msix` or run `Add-AppxPackage`.
+
+### What changes inside the package
+
+`%APPDATA%\FrameIt\settings.json` and `%LOCALAPPDATA%\FrameIt\sessions` are redirected into the package's virtual file system. Uninstalling the MSIX removes that copy. The capture folder is still the real Pictures folder (`%USERPROFILE%\Pictures\FrameIt`), not a virtualized one. The package declares `picturesLibrary` and `runFullTrust`, so the tray, global hotkeys, and Credential Manager (SMTP and FTP secrets) behave as they do in the unpackaged app.
+
+**Start FrameIt when Windows starts** is in Settings → Capture. The package manifest registers startup task `FrameItStartup` with `Enabled="false"`, so it stays off until that box is checked. The portable and Inno builds leave the box disabled and do not register a startup task.
 
 ## Hotkeys (default)
 
@@ -221,6 +268,7 @@ Only the active tab is fully decoded. Other tabs keep a small thumbnail until yo
 - M2: `docs/M2-TEST-CHECKLIST.md`
 - M3: `docs/M3-TEST-CHECKLIST.md`
 - M4: `docs/M4-TEST-CHECKLIST.md`
+- MSIX: `docs/MSIX-TEST-CHECKLIST.md`
 
 ## Notes and limitations
 

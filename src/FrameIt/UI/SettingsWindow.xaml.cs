@@ -14,6 +14,7 @@ public partial class SettingsWindow : Window
     private readonly WindowsCredentialStore _credentials = new();
     private readonly SessionStore? _sessions;
     private readonly Func<long>? _clearSessions;
+    private StartupPreference _startup;
 
     public SettingsWindow(AppSettings source, SessionStore? sessions = null, Func<long>? clearSessions = null)
     {
@@ -137,6 +138,10 @@ public partial class SettingsWindow : Window
         SftpPasswordStoredText.Text = DescribeStored("password", CredentialNames.SftpPassword);
         SftpPassphraseStoredText.Text = DescribeStored("passphrase", CredentialNames.SftpPassphrase);
         UpdateSftpPanels();
+        _startup = PackagedStartup.Query();
+        StartupCheckBox.IsChecked = _startup.Enabled;
+        StartupCheckBox.IsEnabled = _startup.CanChange;
+        StartupHint.Text = _startup.Hint;
     }
 
     private void BrowseFolderButton_OnClick(object sender, RoutedEventArgs e)
@@ -320,6 +325,16 @@ public partial class SettingsWindow : Window
             Sftp = sftp,
             Hotkeys = hotkeys
         };
+
+        if (_startup.IsPackaged && StartupCheckBox.IsChecked != _startup.Enabled)
+        {
+            var problem = PackagedStartup.Apply(StartupCheckBox.IsChecked == true);
+            if (problem is not null)
+            {
+                System.Windows.MessageBox.Show(this, problem, "FrameIt", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+        }
 
         DialogResult = true;
     }

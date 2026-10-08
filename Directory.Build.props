@@ -1,4 +1,5 @@
 <Project>
+  <Import Project="packaging/msix/Package.props" />
   <PropertyGroup>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
