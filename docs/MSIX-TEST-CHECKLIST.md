@@ -7,7 +7,7 @@ Run these on a real Windows x64 PC. The Linux build can compile the app and pack
 signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 .\artifacts\msix\FrameItSnap_0.5.0.0_x64_sideload.msix
 ```
 
-Trust `dist/FrameIt-Test-Certificate.cer` in Local Machine Root and Trusted Publisher before installing. The Store upload package is `./build.ps1 -Msix`. Its publisher is `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A` and the publisher display name is Ednahkirhs. Identity Name is still `FrameItSnap.Placeholder` until the Product identity name is pasted into `packaging/msix/Package.props`. The sideload package overrides the publisher to `CN=Abhijit Shrikhande (FrameIt Test)`.
+Trust `dist/FrameIt-Test-Certificate.cer` in Local Machine Root and Trusted Publisher before installing. The Store upload package is `./build.ps1 -Msix`. Its publisher is `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A` and the publisher display name is Edhahkirhs. Identity Name is `Edhahkirhs.FrameItSnap`. The sideload package overrides the publisher to `CN=Abhijit Shrikhande (FrameIt Test)`.
 
 1. **Install and sideload**
    - Install `FrameItSnap_0.5.0.0_x64_sideload.msix`.

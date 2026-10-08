@@ -2,18 +2,16 @@
   <PropertyGroup>
     <!-- One place for the package version and the Store identity.
          Version is four parts and is also the assembly version. The user-facing version is 0.5.0.
-         Identity Name is still a placeholder. Replace FrameItSnapIdentityName with the
-         Package/Identity/Name value from the product's Product identity page in Partner Center.
-         Publisher and PublisherDisplayName are the Partner Center values for the Store package.
+         Identity Name, Publisher, and PublisherDisplayName are the Partner Center Product identity values for this Store listing (Identity Name uses the reserved spelling Edhahkirhs).
          SideloadPublisher must stay equal to the test certificate subject. build.ps1 -MsixSideload
          overrides Publisher with SideloadPublisher so the package matches that cert. -->
     <Version>0.5.0.0</Version>
     <AssemblyVersion>0.5.0.0</AssemblyVersion>
     <FileVersion>0.5.0.0</FileVersion>
     <InformationalVersion>0.5.0</InformationalVersion>
-    <FrameItSnapIdentityName>FrameItSnap.Placeholder</FrameItSnapIdentityName>
+    <FrameItSnapIdentityName>Edhahkirhs.FrameItSnap</FrameItSnapIdentityName>
     <FrameItSnapPublisher>CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A</FrameItSnapPublisher>
-    <FrameItSnapPublisherDisplayName>Ednahkirhs</FrameItSnapPublisherDisplayName>
+    <FrameItSnapPublisherDisplayName>Edhahkirhs</FrameItSnapPublisherDisplayName>
     <FrameItSnapDisplayName>FrameIt Snap</FrameItSnapDisplayName>
     <FrameItSnapSideloadPublisher>CN=Abhijit Shrikhande (FrameIt Test)</FrameItSnapSideloadPublisher>
   </PropertyGroup>

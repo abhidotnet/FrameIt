@@ -112,9 +112,9 @@ The script:
 
 The Store package is a full-trust desktop app. Identity values and the package version live in one file, `packaging/msix/Package.props`. The version there (`0.5.0.0`) is also the assembly version. The user-facing version is 0.5.0. Logos are generated from `src/FrameItSnap/Assets/FrameIt-icon-source.png` by `packaging/msix/generate-logos.py` and saved under `packaging/msix/Assets/`.
 
-- Identity Name: `FrameItSnap.Placeholder` (still a placeholder; replace it with Package/Identity/Name from the product's Product identity page)
+- Identity Name: `Edhahkirhs.FrameItSnap`
 - Publisher: `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A`
-- PublisherDisplayName: `Ednahkirhs`
+- PublisherDisplayName: `Edhahkirhs`
 - Display name: `FrameIt Snap`
 
 The Store build (`-Msix`) uses that publisher. `-MsixSideload` overrides Publisher to `CN=Abhijit Shrikhande (FrameIt Test)` so it matches the test certificate.
