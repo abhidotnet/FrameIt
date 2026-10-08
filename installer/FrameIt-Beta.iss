@@ -2,13 +2,14 @@
 ; Compile on Windows, from the repository root:
 ;   ./build.ps1 -Installer
 ; Inno Setup 6 must be installed. ISCC.exe writes dist/installer/FrameIt-Beta-Setup.exe.
-; The files it installs are the framework-dependent publish in dist/portable.
+; The files it installs are the framework-dependent publish in artifacts/framework-dependent.
+; That folder is build scratch. This script does not read or write dist/portable.
 ; That publish needs the .NET 8 Desktop Runtime (Windows x64).
 
 #define MyAppName "FrameIt Beta"
 #define MyAppExeName "FrameIt.exe"
 #define MyAppVersion "1.0.0-beta"
-#define SourceDir "..\dist\portable"
+#define SourceDir "..\artifacts\framework-dependent"
 #define IconFile "..\src\FrameIt\Assets\FrameIt.ico"
 
 [Setup]

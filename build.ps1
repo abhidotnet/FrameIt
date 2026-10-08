@@ -2,7 +2,8 @@ param(
     [switch]$Installer,
     [switch]$Msix,
     [switch]$MsixSideload,
-    [string]$MsixPublisher = ""
+    [string]$MsixPublisher = "",
+    [switch]$UpdateDist
 )
 
 $ErrorActionPreference = "Stop"
@@ -257,14 +258,26 @@ try {
         /p:EnableWindowsTargeting=true `
         -o $frameworkOut
 
-    Sync-DistPortable -Source $frameworkOut -Destination $distPortable
+    if ($UpdateDist) {
+        Write-Host ""
+        Write-Host "WARNING: -UpdateDist replaces the test-signed files in dist/portable."
+        Write-Host "FrameIt.exe, FrameIt.dll, and FrameIt.deps.json will no longer match dist/FrameIt-Test-Certificate.cer."
+        Write-Host "Sign them again before you commit or share dist/."
+        Write-Host ""
+        Sync-DistPortable -Source $frameworkOut -Destination $distPortable
+    }
 
     if ($Installer) {
         $iscc = Find-Iscc
         if (-not $iscc) {
-            throw "Inno Setup 6 compiler (ISCC.exe) was not found. Install Inno Setup 6, then run ./build.ps1 -Installer. That writes dist/installer/FrameIt-Beta-Setup.exe from installer/FrameIt-Beta.iss."
+            throw "Inno Setup 6 compiler (ISCC.exe) was not found. Install Inno Setup 6, then run ./build.ps1 -Installer. That writes dist/installer/FrameIt-Beta-Setup.exe from installer/FrameIt-Beta.iss. It does not modify dist/portable."
         }
 
+        Write-Host ""
+        Write-Host "WARNING: -Installer replaces dist/installer/FrameIt-Beta-Setup.exe."
+        Write-Host "The setup exe in git is test-signed. The new file is unsigned and must be signed again before you commit or share it."
+        Write-Host "dist/portable is left as it is."
+        Write-Host ""
         & $iscc $iss
         if ($LASTEXITCODE -ne 0) {
             throw "ISCC.exe exited with code $LASTEXITCODE."

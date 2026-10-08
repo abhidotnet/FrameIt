@@ -41,7 +41,7 @@ To rebuild the Setup exe, install [Inno Setup 6](https://jrsoftware.org/isinfo.p
 ./build.ps1 -Installer
 ```
 
-That refreshes `dist/portable/` and compiles `installer/FrameIt-Beta.iss` to `dist/installer/FrameIt-Beta-Setup.exe`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.7.3 and then test-signed (see below). The installer was not launched on Windows from this environment. `build.ps1` re-publishes `dist/portable/`, which replaces the signed files with unsigned ones, so sign again after a rebuild.
+That compiles `installer/FrameIt-Beta.iss` from `artifacts/framework-dependent/` into `dist/installer/FrameIt-Beta-Setup.exe`. It does not change `dist/portable/`. The script looks for `ISCC.exe` on `PATH` and under `Program Files\Inno Setup 6`. The copy in this repo was compiled with Inno Setup 6.7.3 and then test-signed (see below). Rebuilding replaces that signed setup exe with an unsigned one, so sign it again before you commit or share it.
 
 ### Portable build
 
@@ -78,6 +78,14 @@ On a test PC:
 
 This only helps on PCs where you import the certificate yourself. It does **not** remove SmartScreen or "unknown publisher" warnings for anyone else. That needs a publicly trusted code-signing certificate, such as Azure Trusted Signing.
 
+`./build.ps1`, `./build.ps1 -Msix`, and `./build.ps1 -MsixSideload` publish only under `artifacts/` and leave `dist/` alone. To replace the signed portable files on purpose:
+
+```powershell
+./build.ps1 -UpdateDist
+```
+
+That copies `artifacts/framework-dependent/` into `dist/portable/` (without PDB files) and warns that `FrameIt.exe`, `FrameIt.dll`, and `FrameIt.deps.json` need to be signed again.
+
 ## Build
 
 Run from the repository root:
@@ -91,9 +99,10 @@ The script:
 1. Restores and builds `FrameIt.sln` in Release.
 2. Publishes a **self-contained single-file win-x64** build to `artifacts/portable/` (local scratch, not committed).
 3. Publishes a **framework-dependent win-x64** build to `artifacts/framework-dependent/`.
-4. Copies that framework-dependent app, without PDB files, to `dist/portable/`.
-5. With `-Installer` on Windows, and Inno Setup 6 installed, compiles `dist/installer/FrameIt-Beta-Setup.exe`.
-6. With `-Msix` on Windows, and the Windows SDK installed, builds a self-contained package under `artifacts/msix/`. That path is not committed. See **Microsoft Store (MSIX)** below. `-Msix` does not write to `dist/`.
+4. Does not write to `dist/`. The signed beta files stay as they are.
+5. With `-UpdateDist`, copies that framework-dependent app, without PDB files, to `dist/portable/` and warns that the replaced files need re-signing.
+6. With `-Installer` on Windows, and Inno Setup 6 installed, compiles `dist/installer/FrameIt-Beta-Setup.exe` from `artifacts/framework-dependent/`. It does not change `dist/portable/`, and it warns that the new setup exe needs re-signing.
+7. With `-Msix` or `-MsixSideload` on Windows, and the Windows SDK installed, builds a self-contained package under `artifacts/msix/`. That path is not committed. See **Microsoft Store (MSIX)** below. Those switches do not write to `dist/`.
 
 ## Microsoft Store (MSIX)
 
@@ -116,7 +125,7 @@ Until the name is reserved, the identity is a placeholder:
    ./build.ps1 -Msix
    ```
 
-   This publishes a self-contained win-x64 folder (the .NET 8 runtime is inside the package, not a single file) and packs `artifacts/msix/FrameIt_0.4.0.0_x64.msix`. `artifacts/` stays out of git. This switch does not modify `dist/`.
+   This publishes a self-contained win-x64 folder (the .NET 8 runtime is inside the package, not a single file) and packs `artifacts/msix/FrameIt_0.4.0.0_x64.msix`. `artifacts/` stays out of git. `-Msix` and `-MsixSideload` do not modify `dist/`, including the test-signed portable binaries.
 4. If `makeappx.exe` is not on `PATH`, the script looks under `Windows Kits\10\bin\*\x64`. If it is still missing, the script stops and names the SDK to install.
 5. Run the Windows App Certification Kit against that `.msix`.
 6. In Partner Center, create a submission and upload the `.msix`.
