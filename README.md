@@ -214,7 +214,7 @@ The private-key field is a file path. The key file itself stays where you put it
 
 - Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Capture delay, Open editor, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
-- Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of device pixels, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
+- Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of the same per-monitor virtual-screen bitmap full screen uses, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
 - Full screen captures every monitor into one image the size of the virtual screen, in device pixels. A monitor to the left of the primary (negative coordinates) stays on the left. Region, active window, and fixed-size capture stay on one area.
 - Active window and fixed-size region capture.
 - Per-monitor DPI (`PerMonitorV2`).
@@ -282,6 +282,7 @@ Only the active tab is fully decoded. Other tabs keep a small thumbnail until yo
 - M3: `docs/M3-TEST-CHECKLIST.md`
 - M4: `docs/M4-TEST-CHECKLIST.md`
 - MSIX: `docs/MSIX-TEST-CHECKLIST.md`
+- Region capture pixels: `docs/REGION-CAPTURE-TEST-CHECKLIST.md`
 
 ## Notes and limitations
 

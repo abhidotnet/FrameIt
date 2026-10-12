@@ -11,6 +11,14 @@ namespace FrameItSnap;
 
 public partial class App : System.Windows.Application
 {
+    static App()
+    {
+        // The manifest is PerMonitorV2. WinForms does not read that until SetHighDpiMode
+        // runs, and the first NotifyIcon or Screen access is too late. WPF and WinForms
+        // then disagree, and Screen bounds are no longer physical pixels.
+        Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
+    }
+
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
     private readonly SemaphoreSlim _captureLock = new(1, 1);
     private Mutex? _singleInstanceMutex;

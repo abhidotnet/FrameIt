@@ -422,6 +422,7 @@
             VerticalScrollBarVisibility="Auto"
             HorizontalContentAlignment="Left"
             VerticalContentAlignment="Top"
+            UseLayoutRounding="False"
             Focusable="False">
             <Grid
                 x:Name="CanvasHost"
@@ -430,12 +431,14 @@
                 VerticalAlignment="Top"
                 Background="Transparent"
                 ClipToBounds="True"
-                SnapsToDevicePixels="True">
+                UseLayoutRounding="False"
+                SnapsToDevicePixels="True"
+                RenderOptions.BitmapScalingMode="NearestNeighbor">
                 <Image
                     x:Name="BaseImage"
-                    Stretch="Fill"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
+                    Stretch="None"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
                     SnapsToDevicePixels="True"
                     RenderOptions.BitmapScalingMode="NearestNeighbor" />
                 <Canvas x:Name="RedactionCanvas" IsHitTestVisible="False" />

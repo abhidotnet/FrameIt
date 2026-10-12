@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using FrameItSnap.Editing;
 using FrameItSnap.Interop;
 using Windows.Graphics.Capture;
 
@@ -41,7 +42,7 @@ public sealed class CaptureService
         return System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? Rectangle.Empty;
     }
 
-    public Bitmap CaptureVirtualScreen()
+    public Rectangle GetVirtualScreenBounds()
     {
         var virtualBounds = System.Windows.Forms.SystemInformation.VirtualScreen;
         if (virtualBounds.Width <= 0 || virtualBounds.Height <= 0)
@@ -49,6 +50,12 @@ public sealed class CaptureService
             virtualBounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? Rectangle.Empty;
         }
 
+        return virtualBounds;
+    }
+
+    public Bitmap CaptureVirtualScreen()
+    {
+        var virtualBounds = GetVirtualScreenBounds();
         var screens = System.Windows.Forms.Screen.AllScreens;
         if (screens.Length <= 1)
         {
@@ -113,6 +120,37 @@ public sealed class CaptureService
         return bounds;
     }
 
+    /// <summary>
+    /// Crops <paramref name="physicalBounds"/> from the same per-monitor stitch full
+    /// screen uses. A single BitBlt of a rectangle that crosses monitors, or of the
+    /// whole virtual screen, is resampled when those monitors do not share a DPI.
+    /// </summary>
+    public Bitmap? CapturePhysicalRegion(Rectangle physicalBounds)
+    {
+        if (physicalBounds.Width <= 0 || physicalBounds.Height <= 0)
+        {
+            return null;
+        }
+
+        var virtualBounds = GetVirtualScreenBounds();
+        using var screen = CaptureVirtualScreen();
+        var local = CaptureGeometry.PhysicalToBitmap(
+            physicalBounds.Left,
+            physicalBounds.Top,
+            physicalBounds.Width,
+            physicalBounds.Height,
+            virtualBounds.Left,
+            virtualBounds.Top,
+            screen.Width,
+            screen.Height);
+        if (local is null)
+        {
+            return null;
+        }
+
+        return ImageEffects.Crop(screen, new Rectangle(local.Value.X, local.Value.Y, local.Value.Width, local.Value.Height));
+    }
+
     public Bitmap CaptureRectangle(Rectangle bounds)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
@@ -138,6 +176,8 @@ public sealed class CaptureService
                 throw new InvalidOperationException("Unable to create memory device context.");
             }
 
+            // bounds must lie on one monitor. A blit that crosses monitors is resampled
+            // when those monitors use different DPI. Desktop regions use CapturePhysicalRegion.
             hBitmap = NativeMethods.CreateCompatibleBitmap(desktopDc, bounds.Width, bounds.Height);
             if (hBitmap == IntPtr.Zero)
             {
