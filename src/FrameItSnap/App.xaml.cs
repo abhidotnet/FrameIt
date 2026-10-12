@@ -293,6 +293,21 @@ public partial class App : System.Windows.Application
         }
 
         var failures = _hotkeyService.RegisterAll(_settings);
+        if (_settingsService is not null &&
+            ScrollCaptureHotkey.TryApplyRegistrationFallback(
+                _settings.Hotkeys,
+                failures.Select(item => (item.mode, item.binding.ToString()))))
+        {
+            _settingsService.Save(_settings);
+            failures = _hotkeyService.RegisterAll(_settings);
+            if (showConflictNotification && !failures.Any(item => item.mode == CaptureMode.Scrolling))
+            {
+                ShowNotification(
+                    "Scrolling capture is " + ScrollCaptureHotkey.Fallback +
+                    ". " + ScrollCaptureHotkey.Preferred + " could not be registered.");
+            }
+        }
+
         if (!showConflictNotification || failures.Count == 0)
         {
             return;

@@ -7,5 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\FrameItSnap\Services\ScrollStitch.cs" Link="ScrollStitch.cs" />
+    <Compile Include="..\..\src\FrameItSnap\Services\ScrollCaptureHotkey.cs" Link="ScrollCaptureHotkey.cs" />
+    <Compile Include="..\..\src\FrameItSnap\Models\CaptureMode.cs" Link="CaptureMode.cs" />
   </ItemGroup>
 </Project>

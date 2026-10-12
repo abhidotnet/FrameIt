@@ -1,3 +1,4 @@
+using FrameItSnap.Models;
 using FrameItSnap.Services;
 
 // Pure overlap math. No window, no bitmap, no scroll message.
@@ -106,6 +107,52 @@ Add(page, Frame(10, 11, 12, 13, 14, 15, 16, 17));
 var paged = page.Add(Frame(16, 17, 18, 19, 20, 21, 22, 23));
 Expect(paged.Status == ScrollStitch.AddStatus.Extended && paged.ScrollRows == 6, "a long page step still stitches when two rows overlap");
 ExpectCodes(Codes(page.Build()), new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 }, "the long step does not drop the overlap");
+
+var captureDefaults = new Dictionary<CaptureMode, string>
+{
+    [CaptureMode.Region] = "PrintScreen",
+    [CaptureMode.FullScreen] = "Shift+PrintScreen",
+    [CaptureMode.ActiveWindow] = "Alt+PrintScreen",
+    [CaptureMode.FixedRegion] = "Ctrl+Shift+PrintScreen"
+};
+Expect(ScrollCaptureHotkey.Choose(captureDefaults) == ScrollCaptureHotkey.Preferred, "scrolling capture defaults to Ctrl+Alt+PrintScreen");
+captureDefaults[CaptureMode.Region] = ScrollCaptureHotkey.Preferred;
+Expect(ScrollCaptureHotkey.Choose(captureDefaults) == ScrollCaptureHotkey.Fallback, "a taken PrintScreen chord falls back to Ctrl+Shift+Alt+S");
+Expect(ScrollCaptureHotkey.IsRetiredDefault("Ctrl+Shift+S"), "the old scrolling default is the Save As chord");
+Expect(ScrollCaptureHotkey.IsRetiredDefault("ctrl + shift + s"), "modifier order and case still match the retired chord");
+foreach (var chord in ScrollCaptureHotkey.DefaultCaptureChords)
+{
+    Expect(!ScrollCaptureHotkey.ClashesWithEditor(chord), "default global hotkey " + chord + " is not an editor shortcut");
+}
+
+Expect(ScrollCaptureHotkey.ClashesWithEditor("Ctrl+S"), "Ctrl+S is an editor shortcut");
+Expect(ScrollCaptureHotkey.ClashesWithEditor("Ctrl+Shift+S"), "Ctrl+Shift+S is an editor shortcut");
+
+var rejected = new Dictionary<CaptureMode, string>
+{
+    [CaptureMode.Scrolling] = ScrollCaptureHotkey.Preferred
+};
+Expect(
+    ScrollCaptureHotkey.TryApplyRegistrationFallback(rejected, [(CaptureMode.Scrolling, "Ctrl+Alt+PrtSc")]),
+    "a PrintScreen chord Windows will not register falls back to Ctrl+Shift+Alt+S");
+Expect(rejected[CaptureMode.Scrolling] == ScrollCaptureHotkey.Fallback, "the stored scrolling hotkey becomes the fallback");
+
+var custom = new Dictionary<CaptureMode, string>
+{
+    [CaptureMode.Scrolling] = "Ctrl+Alt+S"
+};
+Expect(
+    !ScrollCaptureHotkey.TryApplyRegistrationFallback(custom, [(CaptureMode.Scrolling, "Ctrl+Alt+S")]),
+    "a custom scrolling hotkey stays when registration fails");
+
+var blocked = new Dictionary<CaptureMode, string>
+{
+    [CaptureMode.Region] = ScrollCaptureHotkey.Fallback,
+    [CaptureMode.Scrolling] = ScrollCaptureHotkey.Preferred
+};
+Expect(
+    !ScrollCaptureHotkey.TryApplyRegistrationFallback(blocked, [(CaptureMode.Scrolling, ScrollCaptureHotkey.Preferred)]),
+    "the fallback is skipped when another capture mode already uses it");
 
 Console.WriteLine("scroll stitch checks passed");
 

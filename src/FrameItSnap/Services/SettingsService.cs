@@ -32,17 +32,12 @@ public sealed class SettingsService
             return defaults;
         }
 
+        AppSettings parsed;
         try
         {
             var json = File.ReadAllText(SettingsFilePath);
-            var parsed = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-            if (parsed is null)
-            {
-                parsed = CreateDefaultSettings();
-            }
-
+            parsed = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? CreateDefaultSettings();
             Normalize(parsed);
-            return parsed;
         }
         catch
         {
@@ -50,6 +45,22 @@ public sealed class SettingsService
             Save(defaults);
             return defaults;
         }
+
+        if (parsed.Hotkeys.TryGetValue(CaptureMode.Scrolling, out var scrolling) &&
+            ScrollCaptureHotkey.IsRetiredDefault(scrolling))
+        {
+            // The first scrolling default was Ctrl+Shift+S, which is Save As in the editor.
+            parsed.Hotkeys[CaptureMode.Scrolling] = ScrollCaptureHotkey.Choose(parsed.Hotkeys);
+            try
+            {
+                Save(parsed);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return parsed;
     }
 
     public void Save(AppSettings settings)

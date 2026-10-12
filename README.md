@@ -160,12 +160,12 @@ Trust `dist/FrameIt-Test-Certificate.cer` (see Test signing above) before instal
 - `Shift+PrintScreen` → Full screen (every monitor, one image)
 - `Alt+PrintScreen` → Active window
 - `Ctrl+Shift+PrintScreen` → Fixed-size region (default 800×600)
-- `Ctrl+Shift+S` → Scrolling capture, when that binding is not already used by another capture mode. If it is taken, FrameIt Snap tries `Ctrl+Alt+S`, then `Ctrl+Shift+W`.
+- `Ctrl+Alt+PrintScreen` → Scrolling capture. If that chord is already used by another capture mode, or Windows will not register it, scrolling capture uses `Ctrl+Shift+Alt+S`.
 
 Editor shortcuts, after a capture:
 
 - `Ctrl+S` → Save (overwrite the current file, or Save As when there is no file yet)
-- `Ctrl+Shift+S` → Save As. If scrolling capture is registered on the same keys, Windows delivers the global hotkey first and this shortcut does not run. The **Save as** button still works. Change the scrolling hotkey in Settings to use Save As from the keyboard.
+- `Ctrl+Shift+S` → Save As
 - `Ctrl+Z` / `Ctrl+Y` → Undo / Redo
 - `Ctrl+C` → Copy the edited, flattened image
 - `Delete` → Remove the selected annotation or redaction
@@ -266,7 +266,7 @@ Each capture is its own tab. The tab shows a thumbnail and a short name (`Captur
 
 ## Scrolling capture
 
-Tray **Scrolling capture**, the editor ribbon **Scroll** button, and the scrolling hotkey start the same flow. The default hotkey is `Ctrl+Shift+S` when that chord is free of the other capture modes.
+Tray **Scrolling capture**, the editor ribbon **Scroll** button, and the scrolling hotkey start the same flow. The default hotkey is `Ctrl+Alt+PrintScreen`. None of the default global hotkeys use the editor chords (`Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+C`, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+Shift+Tab`). If `Ctrl+Alt+PrintScreen` is already assigned to another capture mode, or Windows rejects it, the scrolling hotkey becomes `Ctrl+Shift+Alt+S` and that value is saved. An earlier build stored `Ctrl+Shift+S` for scrolling; the next start replaces that one value so Save As keeps those keys.
 
 1. Hover. The bright rectangle is the client area under the cursor. A Win32 scroll bar (`WS_VSCROLL` or a vertical scroll range) selects that child. Chrome and Edge usually highlight the page surface, which is a child window without a Win32 scroll bar.
 2. Click to pick it. Right-click or Esc cancels.

@@ -15,9 +15,9 @@ Start scrolling capture from each of these:
 
 - Tray **Scrolling capture**
 - Editor ribbon **Scroll** (open the editor from a previous capture first)
-- The hotkey in Settings → Capture. The default is `Ctrl+Shift+S` when no other capture mode already uses that binding. If registration fails, the tray balloon names the conflict. Change the binding and try again.
+- The hotkey in Settings → Capture. The default is `Ctrl+Alt+PrintScreen`. If that chord is already used by another capture mode, or Windows will not register it, Settings shows `Ctrl+Shift+Alt+S` and a tray balloon names the switch when registration is what failed.
 
-`Ctrl+Shift+S` is also the editor **Save As** shortcut. While FrameIt Snap owns that global hotkey, the editor does not see it. The **Save as** button still works. To use Save As from the keyboard, set scrolling capture to another binding.
+With the editor focused, `Ctrl+Shift+S` still opens Save As. `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+C`, `Ctrl+W`, `Ctrl+Tab`, and `Ctrl+Shift+Tab` still do what the editor assigns them. None of those chords are a default global hotkey.
 
 ## How to read the file
 
