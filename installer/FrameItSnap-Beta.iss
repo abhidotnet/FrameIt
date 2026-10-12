@@ -9,7 +9,7 @@
 
 #define MyAppName "FrameIt Snap"
 #define MyAppExeName "FrameItSnap.exe"
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.5.1"
 #define SourceDir "..\artifacts\framework-dependent"
 #define IconFile "..\src\FrameItSnap\Assets\FrameItSnap.ico"
 

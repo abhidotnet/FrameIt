@@ -39,8 +39,8 @@ public partial class RegionSelectionWindow : Window
         var scale = ScaleFor(monitor);
         _scaleX = scale.X;
         _scaleY = scale.Y;
-        Width = monitor.Width / _scaleX;
-        Height = monitor.Height / _scaleY;
+        Width = CaptureGeometry.DipLength(monitor.Width, _scaleX * 96.0);
+        Height = CaptureGeometry.DipLength(monitor.Height, _scaleY * 96.0);
         _session.Changed += () => InvalidateVisual();
         Loaded += (_, _) => PinToMonitor();
     }
@@ -50,15 +50,17 @@ public partial class RegionSelectionWindow : Window
         SelectionMode selectionMode,
         AppSettings settings)
     {
-        var virtualBounds = Forms.SystemInformation.VirtualScreen;
+        var captureService = new CaptureService();
+        var virtualBounds = captureService.GetVirtualScreenBounds();
         if (virtualBounds.Width < 2 || virtualBounds.Height < 2)
         {
             return null;
         }
 
         // Freeze the desktop before any overlay exists. The loupe is drawn later, on top of this
-        // bitmap, and is never copied into it.
-        using var desktop = new CaptureService().CaptureRectangle(virtualBounds);
+        // bitmap, and is never copied into it. Crop the stitched virtual screen full screen uses.
+        // One BitBlt of that whole rectangle resamples monitors that do not share a DPI.
+        using var desktop = captureService.CaptureVirtualScreen();
         var frozen = BitmapInterop.ToBitmapSource(desktop);
         var session = new SelectionSession(desktop, frozen, virtualBounds, selectionMode, settings, edgeSnapService);
         var monitors = Monitors(virtualBounds);
@@ -120,10 +122,11 @@ public partial class RegionSelectionWindow : Window
         {
             _scaleX = newDpi.DpiScaleX;
             _scaleY = newDpi.DpiScaleY;
-            Width = _monitor.Width / _scaleX;
-            Height = _monitor.Height / _scaleY;
+            Width = CaptureGeometry.DipLength(_monitor.Width, _scaleX * 96.0);
+            Height = CaptureGeometry.DipLength(_monitor.Height, _scaleY * 96.0);
         }
 
+        _slice = null;
         PinToMonitor();
         InvalidateVisual();
     }
@@ -147,7 +150,9 @@ public partial class RegionSelectionWindow : Window
             return;
         }
 
-        var dest = new WpfRect(0, 0, slice.PixelWidth / _scaleX, slice.PixelHeight / _scaleY);
+        // slice.Width/Height are DIPs after the bitmap DPI is set to this monitor, so DrawImage
+        // does not scale the frozen pixels.
+        var dest = new WpfRect(0, 0, slice.Width, slice.Height);
         dc.DrawImage(slice, dest);
         dc.DrawRectangle(
             new SolidColorBrush(System.Windows.Media.Color.FromArgb(100, 0, 0, 0)),
@@ -237,7 +242,7 @@ public partial class RegionSelectionWindow : Window
 
         var cropped = new CroppedBitmap(_frozen, new Int32Rect(x, y, width, height));
         cropped.Freeze();
-        _slice = cropped;
+        _slice = BitmapInterop.WithDpi(cropped, _scaleX * 96.0, _scaleY * 96.0);
         return _slice;
     }
 
@@ -254,8 +259,8 @@ public partial class RegionSelectionWindow : Window
 
         var undimmed = new CroppedBitmap(slice, new Int32Rect(x, y, width, height));
         undimmed.Freeze();
-        // DIP size is physical pixels divided by this monitor's scale, so the preview is not magnified.
-        dc.DrawImage(undimmed, new WpfRect(local.X, local.Y, width / _scaleX, height / _scaleY));
+        // Natural DIP size matches this monitor, so the bright patch is not magnified.
+        dc.DrawImage(undimmed, new WpfRect(local.X, local.Y, undimmed.Width, undimmed.Height));
     }
 
     private void DrawSelectionLabel(DrawingContext dc, Drawing.Rectangle selected, WpfRect localRect)
@@ -337,11 +342,13 @@ public partial class RegionSelectionWindow : Window
 
     private WpfRect ToDip(Drawing.Rectangle physical)
     {
+        var dpiX = _scaleX * 96.0;
+        var dpiY = _scaleY * 96.0;
         return new WpfRect(
-            (physical.Left - _monitor.Left) / _scaleX,
-            (physical.Top - _monitor.Top) / _scaleY,
-            physical.Width / _scaleX,
-            physical.Height / _scaleY);
+            CaptureGeometry.DipLength(physical.Left - _monitor.Left, dpiX),
+            CaptureGeometry.DipLength(physical.Top - _monitor.Top, dpiY),
+            CaptureGeometry.DipLength(physical.Width, dpiX),
+            CaptureGeometry.DipLength(physical.Height, dpiY));
     }
 
     private void PinToMonitor()
@@ -579,18 +586,24 @@ public partial class RegionSelectionWindow : Window
 
         private Drawing.Bitmap? Crop(Drawing.Rectangle selection)
         {
-            var local = new Drawing.Rectangle(
-                selection.Left - VirtualBounds.Left,
-                selection.Top - VirtualBounds.Top,
+            // selection is already physical pixels from GetCursorPos. Do not multiply by DPI.
+            var local = CaptureGeometry.PhysicalToBitmap(
+                selection.Left,
+                selection.Top,
                 selection.Width,
-                selection.Height);
-            local = Drawing.Rectangle.Intersect(local, new Drawing.Rectangle(0, 0, _desktop.Width, _desktop.Height));
-            if (local.Width < 2 || local.Height < 2)
+                selection.Height,
+                VirtualBounds.Left,
+                VirtualBounds.Top,
+                _desktop.Width,
+                _desktop.Height);
+            if (local is null || local.Value.Width < 2 || local.Value.Height < 2)
             {
                 return null;
             }
 
-            return ImageEffects.Crop(_desktop, local);
+            return ImageEffects.Crop(
+                _desktop,
+                new Drawing.Rectangle(local.Value.X, local.Value.Y, local.Value.Width, local.Value.Height));
         }
 
         private Drawing.Point Snap(Drawing.Point physical)

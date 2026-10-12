@@ -19,7 +19,7 @@ Session files are under `%LOCALAPPDATA%\FrameItSnap\sessions`. They are not the 
 
 3. **Close a dirty tab**
    - Draw an arrow on a tab so the orange dot appears.
-   - Press `Ctrl+W`, or middle-click the tab.
+   - Press `Ctrl+W`, middle-click the tab, or click the tab's ×. The × uses the same close as right-click → Close.
    - Confirm the choices are **Save**, **Discard**, and **Cancel**.
    - Choose **Cancel**. Confirm the tab is still there and the arrow is still there.
    - Close it again and choose **Discard**. Confirm that tab is gone, the capture file already in the capture folder is still there, and the session folder no longer has that tab's files.

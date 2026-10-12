@@ -59,7 +59,11 @@ public sealed class CaptureCoordinator
             var delayElapsed = delayWatch.Elapsed;
 
             Bitmap? bitmap;
-            if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
+            if (mode == CaptureMode.Scrolling)
+            {
+                bitmap = await ScrollCaptureSession.CaptureAsync(_captureService, _setBadge);
+            }
+            else if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
             {
                 var selectionMode = mode == CaptureMode.FixedRegion
                     ? FrameItSnap.UI.SelectionMode.FixedSize
@@ -73,7 +77,9 @@ public sealed class CaptureCoordinator
             else
             {
                 var bounds = await ResolveBoundsAsync(mode, settings);
-                bitmap = bounds.HasValue ? _captureService.CaptureRectangle(bounds.Value) : null;
+                // Window bounds are physical pixels. Crop them from the stitched virtual
+                // screen so a window on a scaled monitor is not resampled by one BitBlt.
+                bitmap = bounds.HasValue ? _captureService.CapturePhysicalRegion(bounds.Value) : null;
             }
 
             if (bitmap is null)
@@ -88,6 +94,7 @@ public sealed class CaptureCoordinator
                 var captureElapsed = SubtractDelay(totalTimer.Elapsed, delayElapsed);
 
                 string? filePath = null;
+                bitmap.SetResolution(96, 96);
                 if (settings.AutoSaveCaptures)
                 {
                     Directory.CreateDirectory(settings.CaptureFolder);

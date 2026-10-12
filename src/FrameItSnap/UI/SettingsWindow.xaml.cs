@@ -111,6 +111,7 @@ public partial class SettingsWindow : Window
         FullScreenHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.FullScreen];
         ActiveWindowHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.ActiveWindow];
         FixedRegionHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.FixedRegion];
+        ScrollingHotkeyTextBox.Text = _workingCopy.Hotkeys[CaptureMode.Scrolling];
 
         SmtpHostTextBox.Text = _workingCopy.Smtp.Host;
         SmtpPortTextBox.Text = _workingCopy.Smtp.Port.ToString();
@@ -238,7 +239,8 @@ public partial class SettingsWindow : Window
             [CaptureMode.Region] = RegionHotkeyTextBox.Text.Trim(),
             [CaptureMode.FullScreen] = FullScreenHotkeyTextBox.Text.Trim(),
             [CaptureMode.ActiveWindow] = ActiveWindowHotkeyTextBox.Text.Trim(),
-            [CaptureMode.FixedRegion] = FixedRegionHotkeyTextBox.Text.Trim()
+            [CaptureMode.FixedRegion] = FixedRegionHotkeyTextBox.Text.Trim(),
+            [CaptureMode.Scrolling] = ScrollingHotkeyTextBox.Text.Trim()
         };
 
         foreach (var pair in hotkeys)

@@ -31,6 +31,7 @@ public partial class EditorWindow : Window
 
     private readonly Func<AppSettings> _getSettings;
     private readonly Action _persistSettings;
+    private readonly Action? _requestScrollCapture;
     private readonly List<System.Windows.Controls.Button> _colorButtons = new();
 
     private EditorTool _tool = EditorTool.Select;
@@ -69,12 +70,13 @@ public partial class EditorWindow : Window
     private Bitmap? _previewBitmap;
     private readonly Dictionary<Redaction, RedactionPatch> _patches = new();
 
-    public EditorWindow(SessionStore sessions, Func<AppSettings> getSettings, Action persistSettings)
+    public EditorWindow(SessionStore sessions, Func<AppSettings> getSettings, Action persistSettings, Action? requestScrollCapture = null)
     {
         InitializeComponent();
         _sessions = sessions;
         _getSettings = getSettings;
         _persistSettings = persistSettings;
+        _requestScrollCapture = requestScrollCapture;
         InitializeSessionTimer();
 
         BuildPalette();
@@ -96,6 +98,7 @@ public partial class EditorWindow : Window
 
         Loaded += (_, _) =>
         {
+            RefreshDisplayedPixels();
             if (_activeTab?.Session is not null)
             {
                 FitToWorkArea();
@@ -105,6 +108,23 @@ public partial class EditorWindow : Window
         };
         HighlightPalette();
         UpdateColorWells();
+    }
+
+    private void ScrollCapture_OnClick(object sender, RoutedEventArgs e)
+    {
+        _requestScrollCapture?.Invoke();
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        if (Math.Abs(oldDpi.PixelsPerInchX - newDpi.PixelsPerInchX) < 0.1 &&
+            Math.Abs(oldDpi.PixelsPerInchY - newDpi.PixelsPerInchY) < 0.1)
+        {
+            return;
+        }
+
+        RefreshDisplayedPixels();
     }
 
     protected override void OnActivated(EventArgs e)
@@ -741,7 +761,7 @@ public partial class EditorWindow : Window
     private void ShowAdjustPreview(int brightness, int contrast)
     {
         var preview = ImageEffects.Adjust(_session.Image, brightness, contrast);
-        BaseImage.Source = BitmapInterop.ToBitmapSource(preview);
+        BaseImage.Source = CreateDisplaySource(preview);
         _previewBitmap?.Dispose();
         _previewBitmap = preview;
         _displayedBitmap = null;
@@ -1428,10 +1448,28 @@ public partial class EditorWindow : Window
 
     private void DisplaySessionImage()
     {
-        BaseImage.Source = BitmapInterop.ToBitmapSource(_session.Image);
+        BaseImage.Source = CreateDisplaySource(_session.Image);
         _displayedBitmap = _session.Image;
         ClearPreview();
         SyncImageSurface();
+    }
+
+    private void RefreshDisplayedPixels()
+    {
+        if (_activeTab?.Session is null || BaseImage.Source is null)
+        {
+            return;
+        }
+
+        var bitmap = _previewBitmap ?? _session.Image;
+        BaseImage.Source = CreateDisplaySource(bitmap);
+        SyncImageSurface();
+    }
+
+    private BitmapSource CreateDisplaySource(Bitmap bitmap)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return BitmapInterop.ForEditorDisplay(bitmap, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
     }
 
     private void SyncImageSurface()
@@ -1441,10 +1479,14 @@ public partial class EditorWindow : Window
             return;
         }
 
-        // BitmapSource.Width/Height are DIPs (pixels * 96 / image DPI), so the host matches
-        // the displayed image and does not stretch into the letterbox around it.
-        CanvasHost.Width = source.Width;
-        CanvasHost.Height = source.Height;
+        // Display DPI matches this monitor, so the DIP size is physical pixels / scale
+        // and WPF blits 1:1. Stretch is None, so a DPI mismatch cannot resample the photo.
+        var width = CaptureGeometry.DipLength(source.PixelWidth, source.DpiX);
+        var height = CaptureGeometry.DipLength(source.PixelHeight, source.DpiY);
+        BaseImage.Width = width;
+        BaseImage.Height = height;
+        CanvasHost.Width = width;
+        CanvasHost.Height = height;
         UpdateOverlayScale();
     }
 
@@ -1508,14 +1550,17 @@ public partial class EditorWindow : Window
             };
             Canvas.SetLeft(host, rect.X);
             Canvas.SetTop(host, rect.Y);
-            host.Children.Add(new System.Windows.Controls.Image
+            var patchImage = new System.Windows.Controls.Image
             {
                 Source = GetRedactionPatch(redaction, rect),
                 Width = rect.Width,
                 Height = rect.Height,
+                Stretch = Stretch.None,
                 SnapsToDevicePixels = true,
                 IsHitTestVisible = false
-            });
+            };
+            RenderOptions.SetBitmapScalingMode(patchImage, BitmapScalingMode.NearestNeighbor);
+            host.Children.Add(patchImage);
             if (ReferenceEquals(redaction, _selectedRedaction))
             {
                 host.Children.Add(CreateAdornerRect(-2, -2, rect.Width + 4, rect.Height + 4));

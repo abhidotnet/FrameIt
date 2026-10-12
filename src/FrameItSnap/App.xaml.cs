@@ -11,6 +11,14 @@ namespace FrameItSnap;
 
 public partial class App : System.Windows.Application
 {
+    static App()
+    {
+        // The manifest is PerMonitorV2. WinForms does not read that until SetHighDpiMode
+        // runs, and the first NotifyIcon or Screen access is too late. WPF and WinForms
+        // then disagree, and Screen bounds are no longer physical pixels.
+        Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
+    }
+
     private readonly Stopwatch _startupTimer = Stopwatch.StartNew();
     private readonly SemaphoreSlim _captureLock = new(1, 1);
     private Mutex? _singleInstanceMutex;
@@ -155,6 +163,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add("Full screen", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FullScreen));
         menu.Items.Add("Active window", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.ActiveWindow));
         menu.Items.Add("Fixed-size region", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FixedRegion));
+        menu.Items.Add("Scrolling capture", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.Scrolling));
         _delayMenu = new Forms.ToolStripMenuItem("Capture delay");
         for (var seconds = 0; seconds <= 10; seconds++)
         {
@@ -284,6 +293,21 @@ public partial class App : System.Windows.Application
         }
 
         var failures = _hotkeyService.RegisterAll(_settings);
+        if (_settingsService is not null &&
+            ScrollCaptureHotkey.TryApplyRegistrationFallback(
+                _settings.Hotkeys,
+                failures.Select(item => (item.mode, item.binding.ToString()))))
+        {
+            _settingsService.Save(_settings);
+            failures = _hotkeyService.RegisterAll(_settings);
+            if (showConflictNotification && !failures.Any(item => item.mode == CaptureMode.Scrolling))
+            {
+                ShowNotification(
+                    "Scrolling capture is " + ScrollCaptureHotkey.Fallback +
+                    ". " + ScrollCaptureHotkey.Preferred + " could not be registered.");
+            }
+        }
+
         if (!showConflictNotification || failures.Count == 0)
         {
             return;
@@ -316,7 +340,11 @@ public partial class App : System.Windows.Application
             return _editor;
         }
 
-        var editor = new EditorWindow(_sessionStore!, () => _settings!, () => _settingsService!.Save(_settings!));
+        var editor = new EditorWindow(
+            _sessionStore!,
+            () => _settings!,
+            () => _settingsService!.Save(_settings!),
+            () => _ = BeginCaptureAsync(CaptureMode.Scrolling));
         editor.Closed += (_, _) =>
         {
             if (ReferenceEquals(_editor, editor))

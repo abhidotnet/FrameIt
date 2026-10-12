@@ -4,15 +4,15 @@ Run these on a real Windows x64 PC. The Linux build can compile the app and pack
 
 ```powershell
 ./build.ps1 -MsixSideload
-signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 .\artifacts\msix\FrameItSnap_0.5.0.0_x64_sideload.msix
+signtool sign /sha1 EACD61BACD1A4D608F325F5F9E39EF8D3A9F9503 /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 .\artifacts\msix\FrameItSnap_0.5.1.0_x64_sideload.msix
 ```
 
 Trust `dist/FrameIt-Test-Certificate.cer` in Local Machine Root and Trusted Publisher before installing. The Store upload package is `./build.ps1 -Msix`. Its publisher is `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A` and the publisher display name is Edhahkirhs. Identity Name is `Edhahkirhs.FrameItSnap`. The sideload package overrides the publisher to `CN=Abhijit Shrikhande (FrameIt Test)`.
 
 1. **Install and sideload**
-   - Install `FrameItSnap_0.5.0.0_x64_sideload.msix`.
+   - Install `FrameItSnap_0.5.1.0_x64_sideload.msix`.
    - Confirm Start shows **FrameIt Snap** with the teal and gold frame tile, not a generic icon.
-   - Confirm the package version is 0.5.0.0 and the publisher is `CN=Abhijit Shrikhande (FrameIt Test)`.
+   - Confirm the package version is 0.5.1.0 and the publisher is `CN=Abhijit Shrikhande (FrameIt Test)`.
    - Launch it from Start. Confirm the tray icon is the brand graphic.
 
 2. **Tray and hotkeys**
@@ -49,4 +49,4 @@ Trust `dist/FrameIt-Test-Certificate.cer` in Local Machine Root and Trusted Publ
    - Confirm the package's virtualized settings and session files are removed with the app.
 
 8. **Windows App Certification Kit**
-   - Run WACK against `artifacts/msix/FrameItSnap_0.5.0.0_x64.msix` (the Store build, after Partner Center identity is filled in) and confirm it passes before upload.
+   - Run WACK against `artifacts/msix/FrameItSnap_0.5.1.0_x64.msix` (the Store build, after Partner Center identity is filled in) and confirm it passes before upload.
