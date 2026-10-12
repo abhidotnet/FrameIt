@@ -112,7 +112,11 @@ On each monitor, at 100% and at 150%:
 3. On each monitor the picture is one image pixel per screen pixel of that monitor. It does not stay at the previous monitor's zoom, and it does not switch to a stretched Fill of the window.
 4. Draw a 1px rectangle annotation on the checkerboard. It sits on the pixel you clicked. Undo still removes it.
 
-## 11. What is still out of scope here
+## 11. Tab × closes the tab
+
+With two captures open, click the × on one tab. That tab closes the same way as right-click → **Close** (Save, Discard, or Cancel when the tab is dirty). Dragging a tab by its title still reorders it.
+
+## 12. What is still out of scope here
 
 - Capture delay, email, and FTP are covered by `docs/M3-TEST-CHECKLIST.md`.
 - The translucent selection overlay can look slightly soft because it is a layered window. Judge the PNG and the editor, not the dimmed preview alone. The loupe is a magnified preview and must not appear in the file.

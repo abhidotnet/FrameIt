@@ -914,7 +914,16 @@ public partial class EditorWindow
 
     private void Header_OnPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // Mouse-up tunnels through this header before the × button sees it. Marking it
+        // handled swallows Button.Click, so the × never reaches CloseTab. A press that
+        // started on the tab (a drag) still ends here and does not close.
+        var closeClick = _dragHeader is null && IsCloseSource(e.OriginalSource);
         EndDrag(persist: _dragMoved);
+        if (closeClick)
+        {
+            return;
+        }
+
         e.Handled = true;
     }
 
