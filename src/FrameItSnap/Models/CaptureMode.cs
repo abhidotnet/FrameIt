@@ -5,5 +5,6 @@ public enum CaptureMode
     Region,
     FullScreen,
     ActiveWindow,
-    FixedRegion
+    FixedRegion,
+    Scrolling
 }

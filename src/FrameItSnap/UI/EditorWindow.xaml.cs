@@ -31,6 +31,7 @@ public partial class EditorWindow : Window
 
     private readonly Func<AppSettings> _getSettings;
     private readonly Action _persistSettings;
+    private readonly Action? _requestScrollCapture;
     private readonly List<System.Windows.Controls.Button> _colorButtons = new();
 
     private EditorTool _tool = EditorTool.Select;
@@ -69,12 +70,13 @@ public partial class EditorWindow : Window
     private Bitmap? _previewBitmap;
     private readonly Dictionary<Redaction, RedactionPatch> _patches = new();
 
-    public EditorWindow(SessionStore sessions, Func<AppSettings> getSettings, Action persistSettings)
+    public EditorWindow(SessionStore sessions, Func<AppSettings> getSettings, Action persistSettings, Action? requestScrollCapture = null)
     {
         InitializeComponent();
         _sessions = sessions;
         _getSettings = getSettings;
         _persistSettings = persistSettings;
+        _requestScrollCapture = requestScrollCapture;
         InitializeSessionTimer();
 
         BuildPalette();
@@ -106,6 +108,11 @@ public partial class EditorWindow : Window
         };
         HighlightPalette();
         UpdateColorWells();
+    }
+
+    private void ScrollCapture_OnClick(object sender, RoutedEventArgs e)
+    {
+        _requestScrollCapture?.Invoke();
     }
 
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)

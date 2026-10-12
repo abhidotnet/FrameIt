@@ -1125,6 +1125,7 @@ public partial class EditorWindow
             CaptureMode.ActiveWindow => "Window",
             CaptureMode.FullScreen => "Full screen",
             CaptureMode.FixedRegion => "Fixed",
+            CaptureMode.Scrolling => "Scrolling",
             _ => "Region"
         };
     }

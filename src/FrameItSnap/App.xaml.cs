@@ -163,6 +163,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add("Full screen", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FullScreen));
         menu.Items.Add("Active window", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.ActiveWindow));
         menu.Items.Add("Fixed-size region", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.FixedRegion));
+        menu.Items.Add("Scrolling capture", null, (_, _) => _ = BeginCaptureAsync(CaptureMode.Scrolling));
         _delayMenu = new Forms.ToolStripMenuItem("Capture delay");
         for (var seconds = 0; seconds <= 10; seconds++)
         {
@@ -324,7 +325,11 @@ public partial class App : System.Windows.Application
             return _editor;
         }
 
-        var editor = new EditorWindow(_sessionStore!, () => _settings!, () => _settingsService!.Save(_settings!));
+        var editor = new EditorWindow(
+            _sessionStore!,
+            () => _settings!,
+            () => _settingsService!.Save(_settings!),
+            () => _ = BeginCaptureAsync(CaptureMode.Scrolling));
         editor.Closed += (_, _) =>
         {
             if (ReferenceEquals(_editor, editor))

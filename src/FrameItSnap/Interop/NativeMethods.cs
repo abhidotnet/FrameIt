@@ -136,4 +136,93 @@ internal static class NativeMethods
         int cx,
         int cy,
         uint uFlags);
+
+    internal const int GwlStyle = -16;
+    internal const long WsVScroll = 0x00200000;
+    internal const uint GwHwndNext = 2;
+    internal const uint GaRoot = 2;
+    internal const uint WmMouseWheel = 0x020A;
+    internal const uint WmKeyDown = 0x0100;
+    internal const uint WmKeyUp = 0x0101;
+    internal const int VkNext = 0x22;
+    internal const int WheelDelta = 120;
+    internal const uint SmtoAbortIfHung = 0x0002;
+    internal const int SbVert = 1;
+    internal const uint SifRange = 0x0001;
+    internal const uint SifPage = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct ScrollInfo
+    {
+        public uint CbSize;
+        public uint FMask;
+        public int NMin;
+        public int NMax;
+        public uint NPage;
+        public int NPos;
+        public int NTrackPos;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct GuiThreadInfo
+    {
+        public uint CbSize;
+        public uint Flags;
+        public IntPtr HwndActive;
+        public IntPtr HwndFocus;
+        public IntPtr HwndCapture;
+        public IntPtr HwndMenuOwner;
+        public IntPtr HwndMoveSize;
+        public IntPtr HwndCaret;
+        public Rect RcCaret;
+    }
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetParent(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr RealChildWindowFromPoint(IntPtr hwndParent, Point ptParentClientCoords);
+
+    [DllImport("user32.dll")]
+    internal static extern bool GetClientRect(IntPtr hWnd, out Rect lpRect);
+
+    [DllImport("user32.dll")]
+    internal static extern bool ClientToScreen(IntPtr hWnd, ref Point lpPoint);
+
+    [DllImport("user32.dll")]
+    internal static extern bool ScreenToClient(IntPtr hWnd, ref Point lpPoint);
+
+    [DllImport("user32.dll")]
+    internal static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool GetScrollInfo(IntPtr hwnd, int nBar, ref ScrollInfo lpsi);
+
+    [DllImport("user32.dll")]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("user32.dll")]
+    internal static extern bool GetGUIThreadInfo(uint idThread, ref GuiThreadInfo lpgui);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    internal static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint msg,
+        IntPtr wParam,
+        IntPtr lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out IntPtr lpdwResult);
+
+    [DllImport("kernel32.dll")]
+    internal static extern uint GetCurrentThreadId();
 }

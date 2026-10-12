@@ -160,11 +160,12 @@ Trust `dist/FrameIt-Test-Certificate.cer` (see Test signing above) before instal
 - `Shift+PrintScreen` → Full screen (every monitor, one image)
 - `Alt+PrintScreen` → Active window
 - `Ctrl+Shift+PrintScreen` → Fixed-size region (default 800×600)
+- `Ctrl+Shift+S` → Scrolling capture, when that binding is not already used by another capture mode. If it is taken, FrameIt Snap tries `Ctrl+Alt+S`, then `Ctrl+Shift+W`.
 
 Editor shortcuts, after a capture:
 
 - `Ctrl+S` → Save (overwrite the current file, or Save As when there is no file yet)
-- `Ctrl+Shift+S` → Save As
+- `Ctrl+Shift+S` → Save As. If scrolling capture is registered on the same keys, Windows delivers the global hotkey first and this shortcut does not run. The **Save as** button still works. Change the scrolling hotkey in Settings to use Save As from the keyboard.
 - `Ctrl+Z` / `Ctrl+Y` → Undo / Redo
 - `Ctrl+C` → Copy the edited, flattened image
 - `Delete` → Remove the selected annotation or redaction
@@ -212,7 +213,7 @@ The private-key field is a file path. The key file itself stays where you put it
 
 ## M1 capture
 
-- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Capture delay, Open editor, Open captures folder, Settings, Exit.
+- Single-instance tray app. The menu is: Region, Full screen, Active window, Fixed-size region, Scrolling capture, Capture delay, Open editor, Open captures folder, Settings, Exit.
 - Global hotkeys, persisted in JSON.
 - Region overlay with a magnifier loupe and basic edge snapping. The loupe is a preview only. The saved region is a 1:1 crop of the same per-monitor virtual-screen bitmap full screen uses, including on mixed-DPI monitors. Edge snapping moves the rectangle onto a window edge and does not scale those pixels.
 - Full screen captures every monitor into one image the size of the virtual screen, in device pixels. A monitor to the left of the primary (negative coordinates) stays on the left. Region, active window, and fixed-size capture stay on one area.
@@ -237,7 +238,7 @@ A new capture opens in its own tab. It does not replace the tab you are editing.
 
 ### Capture delay
 
-Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt Snap hides the editor (so the editor is not in the shot) and before the region overlay, full-screen grab, active-window grab, or fixed-size grab. Hiding does not close tabs.
+Every capture mode waits `CaptureDelaySeconds` before it takes the shot, so you can switch to the window you want. The wait happens after FrameIt Snap hides the editor (so the editor is not in the shot) and before the region overlay, scrolling-capture picker, full-screen grab, active-window grab, or fixed-size grab. Hiding does not close tabs.
 
 While the timer runs, a small countdown sits at the top of the monitor under the cursor, and the tray icon text shows the remaining seconds (`FrameIt Snap - 3s`). The countdown does not take focus. Esc cancels the pending capture from any window. A delay of 0 starts the capture immediately, with no overlay.
 
@@ -255,13 +256,32 @@ X and Instagram are not part of M3.
 
 ## M4 tabs and session recovery
 
-Each capture is its own tab. The tab shows a thumbnail and a short name (`Capture 1`, `Capture 2`, …) plus an orange dot while that tab has unsaved edits or a crop marquee that is not applied yet. The tooltip shows the local time and the capture source (region, window, full screen, or fixed).
+Each capture is its own tab. The tab shows a thumbnail and a short name (`Capture 1`, `Capture 2`, …) plus an orange dot while that tab has unsaved edits or a crop marquee that is not applied yet. The tooltip shows the local time and the capture source (region, window, full screen, fixed, or scrolling).
 
 - Click a tab to switch. Drag a tab to reorder it. Middle-click closes it.
 - Right-click: **Close**, **Close Others**, **Close All**, **Duplicate Tab**.
 - `Ctrl+Tab` and `Ctrl+Shift+Tab` move between tabs. `Ctrl+W` closes the current tab.
 - Closing a dirty tab asks **Save**, **Discard**, or **Cancel**. Save writes the capture file (Save As if it does not have one yet). Discard drops unsaved edits. Neither deletes files that are already in your capture folder.
 - The window X button and `Esc` hide the editor. The tabs stay open. **Open editor** on the tray shows them again. **Exit** on the tray leaves the session in place for the next start.
+
+## Scrolling capture
+
+Tray **Scrolling capture**, the editor ribbon **Scroll** button, and the scrolling hotkey start the same flow. The default hotkey is `Ctrl+Shift+S` when that chord is free of the other capture modes.
+
+1. Hover. The bright rectangle is the client area under the cursor. A Win32 scroll bar (`WS_VSCROLL` or a vertical scroll range) selects that child. Chrome and Edge usually highlight the page surface, which is a child window without a Win32 scroll bar.
+2. Click to pick it. Right-click or Esc cancels.
+3. FrameIt Snap focuses that window, then sends `WM_MOUSEWHEEL` at the clicked point (one notch down). If the client pixels do not move, it sends Page Down. Each frame is only that client rectangle, cropped with the same physical-pixel path as region capture.
+4. Rows that stay put at the top or bottom are kept once (sticky header, sticky footer). The rest is appended by matching overlapping rows.
+5. Capture stops when the content stops moving, when the image reaches 20,000 px, or when you press **Stop** or Esc. A small panel shows the frame count and height.
+6. The stitched image opens as a new editor tab. The tab source is **Scrolling**.
+
+`tests/ScrollStitchCheck` checks the overlap math on synthetic rows (plain scroll, sticky bars, repeated lines, a changing scroll distance, the height cap). Run it with:
+
+```powershell
+dotnet run --project tests/ScrollStitchCheck/ScrollStitchCheck.csproj -c Release
+```
+
+The Windows passes are in `docs/SCROLL-CAPTURE-TEST-CHECKLIST.md` (Chrome, Edge, Explorer, Word, a long chat window, and mixed-DPI monitors).
 
 Session files are not your captures. Auto-save and Save As still write PNG or JPEG files in the capture folder or the folder you pick. Recovery files live only here:
 
@@ -283,6 +303,7 @@ Only the active tab is fully decoded. Other tabs keep a small thumbnail until yo
 - M4: `docs/M4-TEST-CHECKLIST.md`
 - MSIX: `docs/MSIX-TEST-CHECKLIST.md`
 - Region capture pixels: `docs/REGION-CAPTURE-TEST-CHECKLIST.md`
+- Scrolling capture: `docs/SCROLL-CAPTURE-TEST-CHECKLIST.md`
 
 ## Notes and limitations
 
@@ -292,6 +313,7 @@ Only the active tab is fully decoded. Other tabs keep a small thumbnail until yo
 - Resize uses high-quality bicubic sampling.
 - The exe icon is `src/FrameItSnap/Assets/FrameItSnap.ico` (16 through 256). The tray loads that same ICO. Window title bars use `FrameIt-256.png` from the same folder. Tray and Alt+Tab appearance still need a Windows check; this environment cannot show them.
 - Runtime behavior (tray, hotkeys, DPI, editor tools, tabs, session restore after a killed process, save dialogs, JPEG output, the countdown, Esc cancel, Credential Manager, SMTP, and FTP) needs owner validation on Windows 10/11. It cannot be launched in the Linux build environment.
+- Scrolling capture's picker, wheel messages, Page Down fallback, progress panel, and stitched PNG could not be exercised here. There is no Windows desktop session in this environment. `tests/ScrollStitchCheck` covers the stitch math only. A site that animates scrolling, or a control that ignores `WM_MOUSEWHEEL` and Page Down, can stop after one frame or leave a seam. The first scroll step decides the sticky header and footer heights.
 - An unapplied crop blocks tab switching until you press Enter or Esc. A new capture applies that crop on the current tab so the new shot can open.
 - Undo and redo apply to the tab you are on. Leaving the tab keeps the pixels and the annotations, and starts a fresh undo stack when you come back.
 - SMTP security in this build is STARTTLS via `System.Net.Mail.SmtpClient`. Port 465 implicit TLS is not offered.

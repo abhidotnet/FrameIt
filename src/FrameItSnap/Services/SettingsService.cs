@@ -98,6 +98,10 @@ public sealed class SettingsService
         EnsureDefaultHotkey(settings.Hotkeys, CaptureMode.FullScreen, "Shift+PrintScreen");
         EnsureDefaultHotkey(settings.Hotkeys, CaptureMode.ActiveWindow, "Alt+PrintScreen");
         EnsureDefaultHotkey(settings.Hotkeys, CaptureMode.FixedRegion, "Ctrl+Shift+PrintScreen");
+        if (!settings.Hotkeys.TryGetValue(CaptureMode.Scrolling, out var scrolling) || string.IsNullOrWhiteSpace(scrolling))
+        {
+            settings.Hotkeys[CaptureMode.Scrolling] = ScrollCaptureHotkey.Choose(settings.Hotkeys);
+        }
     }
 
     private static void NormalizeSmtp(SmtpSettings smtp)

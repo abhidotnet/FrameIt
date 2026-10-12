@@ -285,6 +285,7 @@ public sealed class SessionStore
             CaptureMode.ActiveWindow => "window",
             CaptureMode.FullScreen => "fullscreen",
             CaptureMode.FixedRegion => "fixed",
+            CaptureMode.Scrolling => "scroll",
             _ => "region"
         };
     }
@@ -297,6 +298,7 @@ public sealed class SessionStore
             "fullscreen" => CaptureMode.FullScreen,
             "fixed" => CaptureMode.FixedRegion,
             "region" => CaptureMode.Region,
+            "scroll" => CaptureMode.Scrolling,
             _ => fallback
         };
     }

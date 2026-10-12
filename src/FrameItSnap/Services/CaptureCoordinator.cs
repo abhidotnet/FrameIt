@@ -59,7 +59,11 @@ public sealed class CaptureCoordinator
             var delayElapsed = delayWatch.Elapsed;
 
             Bitmap? bitmap;
-            if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
+            if (mode == CaptureMode.Scrolling)
+            {
+                bitmap = await ScrollCaptureSession.CaptureAsync(_captureService, _setBadge);
+            }
+            else if (mode is CaptureMode.Region or CaptureMode.FixedRegion)
             {
                 var selectionMode = mode == CaptureMode.FixedRegion
                     ? FrameItSnap.UI.SelectionMode.FixedSize
