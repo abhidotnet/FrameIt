@@ -114,7 +114,7 @@ The Store package is a full-trust desktop app. Identity values and the package v
 
 - Identity Name: `Edhahkirhs.FrameItSnap`
 - Publisher: `CN=3D428300-FD2F-44F4-9A34-B94ED4E2A79A`
-- PublisherDisplayName: `Edhahkirhs`
+- PublisherDisplayName: `Ednahkirhs`
 - Display name: `FrameIt Snap`
 
 The Store build (`-Msix`) uses that publisher. `-MsixSideload` overrides Publisher to `CN=Abhijit Shrikhande (FrameIt Test)` so it matches the test certificate.
