@@ -2,6 +2,8 @@
 
 FrameIt Snap is a PicPick-style Windows screen capture utility. It runs from the system tray, captures from the keyboard, and opens the shot in an editor for crop, annotation, redaction, and save.
 
+Privacy: see [PRIVACY.md](PRIVACY.md). FrameIt Snap collects no personal data and has no telemetry.
+
 > Milestones covered here: **M1 (Capture)**, **M2 (Editor)**, **M3 (Delay and share)**, and **M4 (Tabs and session recovery)**.
 
 ## Tech stack
